@@ -240,8 +240,12 @@ async def worker(url: str, cfg: Dict[str, Any], db: Database, session: aiohttp.C
         out_format = "JPEG"
 
     filename = f"img_{int(time.time()*1000)}_{random.randint(1000,9999)}{out_ext}"
-    tmp_path = out_dir / ("." + filename)
     final_path = out_dir / filename
+    # Use project-level temp dir to avoid cluttering storage with dotfiles
+    project_root = Path(__file__).resolve().parents[1]
+    temp_dir = (project_root / ".tmp").resolve()
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    tmp_path = temp_dir / (filename + ".part")
     try:
         save_kwargs: Dict[str, Any] = {}
         if out_format == "JPEG":
@@ -273,6 +277,20 @@ async def run(cfg: Dict[str, Any], db: Database) -> None:
     log = get_logger()
     storage_root = Path(cfg["project"]["storage_path"]).resolve()
     storage_root.mkdir(parents=True, exist_ok=True)
+    # Cleanup stale temp files in project temp dir
+    project_root = Path(__file__).resolve().parents[1]
+    temp_dir = (project_root / ".tmp").resolve()
+    try:
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        for p in temp_dir.glob("*.part"):
+            try:
+                # Remove files older than ~48h
+                if time.time() - p.stat().st_mtime > 48 * 3600:
+                    p.unlink(missing_ok=True)
+            except Exception:
+                pass
+    except Exception:
+        pass
     # Стартовые параметры
     log.info(
         "Старт пайплайна: storage=%s, threads=%s, per_site=%s, deep_parsing=%s(depth=%s), target=%s",

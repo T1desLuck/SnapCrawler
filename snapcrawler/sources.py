@@ -18,7 +18,23 @@ class SourceManager:
                  max_requests_per_site: int = 100, deep_parsing: bool = False,
                  deep_max_depth: int = 2, extensions: List[str] | None = None,
                  skip_watermarked_urls: bool = True, watermark_keywords: List[str] | None = None) -> None:
-        self.sources = list(sources)
+        # Нормализуем источники: поддерживаем как строки, так и dict с полями {url, deep, max_depth}
+        norm: List[Tuple[str, int]] = []  # (url, per-source max_depth)
+        for s in sources:
+            if isinstance(s, dict):
+                url = s.get("url") or s.get("link") or s.get("href")
+                if not isinstance(url, str):
+                    continue
+                if bool(s.get("deep", False)):
+                    md = int(s.get("max_depth", self.deep_max_depth))
+                else:
+                    md = 0
+                norm.append((url, max(0, md)))
+            elif isinstance(s, str):
+                # Используем глобальные настройки deep_parsing/deep_max_depth
+                md = self.deep_max_depth if self.deep_parsing else 0
+                norm.append((s, max(0, md)))
+        self.sources: List[Tuple[str, int]] = norm
         self.user_agents = user_agents
         self.request_delay = request_delay
         self.max_requests_per_site = max_requests_per_site
@@ -151,13 +167,13 @@ class SourceManager:
         urls: List[str] = []
         conn = aiohttp.TCPConnector(limit=8)
         async with aiohttp.ClientSession(connector=conn) as session:
-            # BFS очередь по страницам: (url, depth)
-            q: deque[Tuple[str, int]] = deque()
-            for src in self.sources:
-                q.append((src, 0))
+            # BFS очередь по страницам: (url, depth, max_depth)
+            q: deque[Tuple[str, int, int]] = deque()
+            for url, md in self.sources:
+                q.append((url, 0, md))
 
             while q:
-                page, depth = q.popleft()
+                page, depth, max_depth = q.popleft()
                 if page in self._seen_pages:
                     continue
                 self._seen_pages.add(page)
@@ -168,10 +184,11 @@ class SourceManager:
                 except Exception:
                     continue
                 urls.extend(imgs)
-                if self.deep_parsing and depth < self.deep_max_depth:
+                # Используем per-source max_depth; если 0 — обход только стартовой страницы
+                if depth < max_depth:
                     for npg in next_pages:
                         if npg not in self._seen_pages:
-                            q.append((npg, depth + 1))
+                            q.append((npg, depth + 1, max_depth))
 
         # Фильтр-страховка по ключевым словам (если попали из вне)
         if self.skip_watermarked_urls and self.watermark_keywords:

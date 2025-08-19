@@ -80,6 +80,7 @@ def _load_clip(cfg: Dict[str, Any]) -> Optional[ClipZeroShot]:
             model_filename=str(cfg.get("clip", {}).get("model_filename", "onnx/model.onnx")),
             tokenizer_filename=str(cfg.get("clip", {}).get("tokenizer_filename", "tokenizer.json")),
             cache_dir=str(cfg.get("clip", {}).get("cache_dir", "./models/clip")),
+            revision=str(cfg.get("clip", {}).get("revision")) if cfg.get("clip", {}).get("revision") else None,
         )
         # custom prompts (optional)
         prompts = cfg.get("clip", {}).get("prompts")

@@ -4,7 +4,7 @@
 project:
   name: "SnapCrawler"            # Имя проекта (для логов/отчетов)
   storage_path: "./download"      # Папка для сохранения изображений (БД будет в корне проекта)
-  max_folder_size_mb: 1024        # Лимит размера папки (в МБ). 0 = без ограничений
+  max_folder_size_mb: 0        # Лимит размера папки (в МБ). 0 = без ограничений
   target_images: 150000           # Целевое число изображений для сбора. 0 = без лимита
   statistics_enabled: true        # Собирать базовую статистику (в БД/логах)
 
@@ -14,8 +14,8 @@ image:
   accept_bw: false                # Принимать ли ч/б изображения (true/false)
   extensions: [".jpg", ".jpeg", ".webp", ".png"]  # Разрешаем webp, либо очистите список для приёма по Content-Type
   orientation: "all"             # Ориентация: all|square|portrait|landscape
-  save_format: "jpeg"            # "jpeg" | "original" — сохранить как JPEG либо в исходном формате
-  jpeg_quality: 95                # Качество JPEG при save_format: jpeg
+  save_format: "original"            # "jpeg" | "original" — сохранить как JPEG либо в исходном формате
+  jpeg_quality: 100                # Качество JPEG при save_format: jpeg
   skip_watermarked_urls: false    # На старте отключим, чтобы не потерять источники; потом можно включить
   watermark_keywords:             # Слова в URL, по которым считаем, что там водяной знак/превью
     - watermark
@@ -24,20 +24,20 @@ image:
     - preview
     - thumb
   watermark_pixel_filter:         # Простой пиксельный фильтр водяных знаков (по краям)
-    enable: false
+    enable: true
     band_ratio: 0.15
     edge_threshold: 25
     edge_density: 0.08
 
 # Настройки нейросетевого фильтра (опционально). Если модели нет — автодеактивация.
 classifier:
-  enable: false                   # Отключаем до-скачивания; запускать будем пост-фильтром
+  enable: false                   # Отключаем; используем CLIP zero-shot как основной фильтр
   model_path: "./models/photo_filter.onnx"  # Путь к ONNX‑модели
   batch_size: 16                  # (Сейчас без эффекта: батч‑инференс не реализован)
   threshold: 0.5                  # Порог уверенности (0..1). Ниже — отбрасываем
   parallel: true                  # [зарезервировано] запуск в отдельном процессе (не используется)
   enable_ssim: false              # [зарезервировано] SSIM‑постфильтр (не используется)
-  auto_download: false            # При отсутствии модели попробовать скачать автоматически
+  auto_download: false            # Не скачиваем модель автоматически (отключено)
   download_url: ""               # Прямая ссылка на .onnx (задайте, если включили auto_download)
 
 # Дедупликация (по pHash)
@@ -93,5 +93,5 @@ postfilter:
   dry_run: true                # Сначала прогон без удаления
   threshold: 0.60              # Порог (0..1) комбинированного скора
   scan_limit: 0                # 0 — без лимита; иначе ограничить кол-во проверок
-  use_classifier: false        # Использовать ли старый ONNX-классификатор (если есть)
+  use_classifier: false        # Не используем legacy‑классификатор
   use_clip: true               # Использовать CLIP zero-shot для очистки
