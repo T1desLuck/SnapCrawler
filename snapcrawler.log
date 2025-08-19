@@ -30,3 +30,9 @@
 2025-08-19 15:34:40 | INFO | snapcrawler | [DRY-RUN] Удалил бы как не-фото (score=0.01<th=0.60): C:\SnapCrawler\dataset\_check_tmp\test.jpg
 2025-08-19 15:34:40 | INFO | snapcrawler | [DRY-RUN] Удалил бы как не-фото (score=0.01<th=0.60): C:\SnapCrawler\dataset\_check_tmp\test.jpg
 2025-08-19 15:34:40 | INFO | snapcrawler | Пост-фильтр завершён: проверено 4, удалено 0 (порог 0.60, dry_run=True)
+2025-08-19 17:17:51 | INFO | snapcrawler | Тест логирования: OK
+2025-08-19 17:19:41 | INFO | snapcrawler | CLIP ONNX готов: C:\SnapCrawler\models\clip\models--openai--clip-vit-base-patch32\snapshots\12b36594d53414ecfba93c7200dbb7c7db3c900a\onnx\model.onnx
+2025-08-19 17:19:41 | INFO | snapcrawler | CLIP-постфильтр активен (repo=openai/clip-vit-base-patch32)
+2025-08-19 17:19:41 | INFO | snapcrawler | [DRY-RUN] Удалил бы как не-фото (score=0.00<th=0.60): C:\SnapCrawler\download\_check_tmp\test.jpg
+2025-08-19 17:19:41 | INFO | snapcrawler | Пост-фильтр завершён: проверено 1, удалено 0 (порог 0.60, dry_run=True)
+2025-08-19 17:20:09 | INFO | snapcrawler | Старт пайплайна: storage=C:\SnapCrawler\download, threads=8, per_site=2, deep_parsing=True(depth=3), target=150000

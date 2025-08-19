@@ -18,6 +18,19 @@ class SourceManager:
                  max_requests_per_site: int = 100, deep_parsing: bool = False,
                  deep_max_depth: int = 2, extensions: List[str] | None = None,
                  skip_watermarked_urls: bool = True, watermark_keywords: List[str] | None = None) -> None:
+        # Инициализация параметров до нормализации (используются ниже)
+        self.user_agents = user_agents
+        self.request_delay = request_delay
+        self.max_requests_per_site = max_requests_per_site
+        self.deep_parsing = bool(deep_parsing)
+        self.deep_max_depth = max(0, int(deep_max_depth))
+        self.extensions = [e.lower() for e in (extensions or [])]
+        self.skip_watermarked_urls = bool(skip_watermarked_urls)
+        self.watermark_keywords = [w.lower() for w in (watermark_keywords or [])]
+        self._seen_pages: Set[str] = set()
+        self._per_site_count: dict[str, int] = {}
+        self.log = get_logger()
+
         # Нормализуем источники: поддерживаем как строки, так и dict с полями {url, deep, max_depth}
         norm: List[Tuple[str, int]] = []  # (url, per-source max_depth)
         for s in sources:
@@ -35,17 +48,6 @@ class SourceManager:
                 md = self.deep_max_depth if self.deep_parsing else 0
                 norm.append((s, max(0, md)))
         self.sources: List[Tuple[str, int]] = norm
-        self.user_agents = user_agents
-        self.request_delay = request_delay
-        self.max_requests_per_site = max_requests_per_site
-        self.deep_parsing = deep_parsing
-        self.deep_max_depth = max(0, int(deep_max_depth))
-        self.extensions = [e.lower() for e in (extensions or [])]
-        self.skip_watermarked_urls = skip_watermarked_urls
-        self.watermark_keywords = [w.lower() for w in (watermark_keywords or [])]
-        self._seen_pages: Set[str] = set()
-        self._per_site_count: dict[str, int] = {}
-        self.log = get_logger()
 
     def _allowed(self, url: str) -> bool:
         d = domain_of(url)
