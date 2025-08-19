@@ -8,6 +8,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 from pathlib import Path
+import urllib.request
+import os
 import numpy as np
 from PIL import Image
 
@@ -25,6 +27,8 @@ class ClassifierConfig:
     model_path: str
     batch_size: int
     threshold: float
+    auto_download: bool = False
+    download_url: str = ""
 
 
 class PhotoClassifier:
@@ -50,8 +54,21 @@ class PhotoClassifier:
             return
         mp = Path(self.cfg.model_path)
         if not mp.exists():
-            log.warning("Файл модели не найден: %s; классификатор будет отключён.", mp)
-            return
+            # Попытаться авто-загрузить, если разрешено и задан URL
+            if self.cfg.auto_download and self.cfg.download_url:
+                try:
+                    mp.parent.mkdir(parents=True, exist_ok=True)
+                    log.info("Загружаю модель из %s -> %s", self.cfg.download_url, mp)
+                    tmp_path = mp.with_suffix(mp.suffix + ".part")
+                    urllib.request.urlretrieve(self.cfg.download_url, tmp_path)
+                    os.replace(tmp_path, mp)
+                    log.info("Модель сохранена: %s", mp)
+                except Exception as e:
+                    log.warning("Не удалось скачать модель: %s", e)
+                    return
+            else:
+                log.warning("Файл модели не найден: %s; классификатор будет отключён.", mp)
+                return
         try:
             sess_opts = ort.SessionOptions()
             sess_opts.intra_op_num_threads = 1

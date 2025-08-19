@@ -321,6 +321,8 @@ async def run(cfg: Dict[str, Any], db: Database) -> None:
             model_path=str(cfg["classifier"]["model_path"]),
             batch_size=int(cfg["classifier"]["batch_size"]),
             threshold=float(cfg["classifier"]["threshold"]),
+            auto_download=bool(cfg["classifier"].get("auto_download", False)),
+            download_url=str(cfg["classifier"].get("download_url", "")),
         )
         clf = PhotoClassifier(clf_cfg)
     except Exception:
