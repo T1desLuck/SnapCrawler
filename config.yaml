@@ -1,0 +1,81 @@
+# Конфигурация SnapCrawler (по умолчанию)
+
+# Раздел проекта и общие цели
+project:
+  name: "SnapCrawler"            # Имя проекта (для логов/отчетов)
+  storage_path: "./dataset"      # Папка для сохранения изображений и БД (SQLite)
+  max_folder_size_mb: 1024        # Лимит размера папки (в МБ). 0 = без ограничений
+  target_images: 100000           # Целевое число изображений для сбора. 0 = без лимита
+  statistics_enabled: true        # Собирать базовую статистику (в БД/логах)
+
+# Правила фильтрации и предобработки изображений
+image:
+  min_side: 512                   # Минимальная сторона изображения (в пикселях)
+  accept_bw: false                # Принимать ли ч/б изображения (true/false)
+  extensions: [".jpg", ".jpeg", ".png"]  # Используется при save_format: original (фильтр допустимых форматов)
+  orientation: "all"             # Ориентация: all|square|portrait|landscape
+  save_format: "jpeg"            # "jpeg" | "original" — сохранить как JPEG либо в исходном формате
+  jpeg_quality: 95                # Качество JPEG при save_format: jpeg
+  skip_watermarked_urls: true     # Пропускать URL с признаками водяных знаков/превью
+  watermark_keywords:             # Слова в URL, по которым считаем, что там водяной знак/превью
+    - watermark
+    - wm
+    - overlay
+    - preview
+    - thumb
+  watermark_pixel_filter:         # Простой пиксельный фильтр водяных знаков (по краям)
+    enable: false
+    band_ratio: 0.15
+    edge_threshold: 25
+    edge_density: 0.08
+
+# Настройки нейросетевого фильтра (опционально). Если модели нет — автодеактивация.
+classifier:
+  enable: true                    # Включить фильтр фото/не-фото
+  model_path: "./models/photo_filter.onnx"  # Путь к ONNX‑модели
+  batch_size: 16                  # (Сейчас без эффекта: батч‑инференс не реализован)
+  threshold: 0.5                  # Порог уверенности (0..1). Ниже — отбрасываем
+  parallel: true                  # [зарезервировано] запуск в отдельном процессе (не используется)
+  enable_ssim: false              # [зарезервировано] SSIM‑постфильтр (не используется)
+
+# Дедупликация (по pHash)
+deduplication:
+  enable: true                    # Включить проверку дубликатов (визуально похожих)
+  hamming_threshold: 5            # Порог расстояния Хэмминга: <5 — считаем дубликатом
+
+# Загрузка и парсинг источников
+download:
+  threads: 6                      # Одновременные запросы (можно 6–8 при хорошем канале)
+  deep_parsing: true              # Глубокий парсинг ссылок <a> в пределах домена (BFS)
+  deep_max_depth: 3               # Максимальная глубина обхода при deep_parsing (BFS по домену)
+  per_site_concurrency: 2         # Параллельные запросы на один домен
+  enable_auto_discovery: false    # [зарезервировано] автообнаружение (sitemap/RSS) — не используется
+  request_delay: 0.6              # Базовая задержка между запросами (сек) + джиттер
+  max_requests_per_site: 500      # Лимит запросов на один домен
+  circuit_breaker_enabled: true   # Включить circuit breaker (пауза при 429/ошибках)
+  user_agents:                    # Ротация User‑Agent для «незаметности»
+    - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15"
+  proxies: []                     # [зарезервировано] список прокси (не используется в текущей версии)
+  sources:                        # Страницы-источники с <img> (лучше CC0/Public Domain)
+    - "https://commons.wikimedia.org/wiki/Category:Photographs"
+    - "https://commons.wikimedia.org/wiki/Category:Featured_pictures"
+    - "https://www.flickr.com/commons/uses"
+    - "https://www.flickr.com/creativecommons/by-2.0/"      # CC BY; убедитесь в совместимости
+    - "https://www.pexels.com/popular-photos/"               # Бесплатные стоки (условия проверяйте сами)
+    - "https://unsplash.com/t/wallpapers"                    # Бесплатные (условия проверяйте сами)
+    - "https://publicdomainpictures.net/en/browse-author.php"
+    - "https://pixnio.com/category/people-photos"            # Public domain (проверьте подписи)
+
+# Упаковка датасета
+packing:
+  format: "zip"                   # Формат архива: zip|tar
+  auto_pack: true                 # Авто‑совет упаковать при превышении лимита
+
+# Пост‑фильтр уже скачанных изображений (очистка ИИ/арт/не‑фото)
+postfilter:
+  enable: false                  # Включить пост‑фильтр (сканирует сохранённые файлы)
+  use_classifier: true           # Использовать ONNX‑модель, если доступна
+  threshold: 0.6                 # Порог комбинированного скора (модель 70% + эвристика 30%)
+  dry_run: true                  # Сухой прогон: только лог, без удаления
+  scan_limit: 0                  # 0 = без ограничений; иначе ограничить число проверок

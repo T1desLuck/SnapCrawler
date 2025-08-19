@@ -1,0 +1,32 @@
+2025-08-19 11:36:44 | INFO | snapcrawler | Images stored: 0
+2025-08-19 11:36:44 | INFO | snapcrawler | Unique hashes: 0
+2025-08-19 14:24:02 | INFO | snapcrawler | Тест логирования: OK
+2025-08-19 14:24:03 | WARNING | snapcrawler | onnxruntime недоступен; классификатор будет отключён.
+2025-08-19 14:24:03 | WARNING | snapcrawler | onnxruntime недоступен; классификатор будет отключён.
+2025-08-19 14:24:03 | INFO | snapcrawler | Классификатор активен: порог 0.50
+2025-08-19 14:24:03 | INFO | snapcrawler | [DRY-RUN] Удалил бы как не-фото (score=0.01<th=0.60): C:\SnapCrawler\dataset\_check_tmp\test.jpg
+2025-08-19 14:24:03 | INFO | snapcrawler | Пост-фильтр завершён: проверено 1, удалено 0 (порог 0.60, dry_run=True)
+2025-08-19 14:24:45 | INFO | snapcrawler | Тест логирования: OK
+2025-08-19 14:24:45 | WARNING | snapcrawler | onnxruntime недоступен; классификатор будет отключён.
+2025-08-19 14:24:45 | WARNING | snapcrawler | onnxruntime недоступен; классификатор будет отключён.
+2025-08-19 14:24:45 | INFO | snapcrawler | Классификатор активен: порог 0.50
+2025-08-19 14:24:45 | INFO | snapcrawler | [DRY-RUN] Удалил бы как не-фото (score=0.01<th=0.60): C:\SnapCrawler\dataset\_check_tmp\test.jpg
+2025-08-19 14:24:45 | INFO | snapcrawler | [DRY-RUN] Удалил бы как не-фото (score=0.01<th=0.60): C:\SnapCrawler\dataset\_check_tmp\test.jpg
+2025-08-19 14:24:45 | INFO | snapcrawler | Пост-фильтр завершён: проверено 2, удалено 0 (порог 0.60, dry_run=True)
+2025-08-19 14:29:10 | INFO | snapcrawler | Тест логирования: OK
+2025-08-19 14:29:16 | WARNING | snapcrawler | Файл модели не найден: models\photo_filter.onnx; классификатор будет отключён.
+2025-08-19 14:29:17 | WARNING | snapcrawler | Файл модели не найден: models\photo_filter.onnx; классификатор будет отключён.
+2025-08-19 14:29:17 | INFO | snapcrawler | Классификатор активен: порог 0.50
+2025-08-19 14:29:17 | INFO | snapcrawler | [DRY-RUN] Удалил бы как не-фото (score=0.01<th=0.60): C:\SnapCrawler\dataset\_check_tmp\test.jpg
+2025-08-19 14:29:17 | INFO | snapcrawler | [DRY-RUN] Удалил бы как не-фото (score=0.01<th=0.60): C:\SnapCrawler\dataset\_check_tmp\test.jpg
+2025-08-19 14:29:17 | INFO | snapcrawler | [DRY-RUN] Удалил бы как не-фото (score=0.01<th=0.60): C:\SnapCrawler\dataset\_check_tmp\test.jpg
+2025-08-19 14:29:17 | INFO | snapcrawler | Пост-фильтр завершён: проверено 3, удалено 0 (порог 0.60, dry_run=True)
+2025-08-19 15:34:39 | INFO | snapcrawler | Тест логирования: OK
+2025-08-19 15:34:40 | WARNING | snapcrawler | Файл модели не найден: models\photo_filter.onnx; классификатор будет отключён.
+2025-08-19 15:34:40 | WARNING | snapcrawler | Файл модели не найден: models\photo_filter.onnx; классификатор будет отключён.
+2025-08-19 15:34:40 | INFO | snapcrawler | Классификатор активен: порог 0.50
+2025-08-19 15:34:40 | INFO | snapcrawler | [DRY-RUN] Удалил бы как не-фото (score=0.01<th=0.60): C:\SnapCrawler\dataset\_check_tmp\test.jpg
+2025-08-19 15:34:40 | INFO | snapcrawler | [DRY-RUN] Удалил бы как не-фото (score=0.01<th=0.60): C:\SnapCrawler\dataset\_check_tmp\test.jpg
+2025-08-19 15:34:40 | INFO | snapcrawler | [DRY-RUN] Удалил бы как не-фото (score=0.01<th=0.60): C:\SnapCrawler\dataset\_check_tmp\test.jpg
+2025-08-19 15:34:40 | INFO | snapcrawler | [DRY-RUN] Удалил бы как не-фото (score=0.01<th=0.60): C:\SnapCrawler\dataset\_check_tmp\test.jpg
+2025-08-19 15:34:40 | INFO | snapcrawler | Пост-фильтр завершён: проверено 4, удалено 0 (порог 0.60, dry_run=True)
