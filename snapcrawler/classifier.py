@@ -52,7 +52,11 @@ class PhotoClassifier:
         if ort is None:
             log.warning("onnxruntime недоступен; классификатор будет отключён.")
             return
+        # Anchor model path to project root if relative
+        project_root = Path(__file__).resolve().parents[1]
         mp = Path(self.cfg.model_path)
+        if not mp.is_absolute():
+            mp = (project_root / mp).resolve()
         if not mp.exists():
             # Попытаться авто-загрузить, если разрешено и задан URL
             if self.cfg.auto_download and self.cfg.download_url:

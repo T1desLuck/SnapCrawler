@@ -12,7 +12,7 @@ project:
 image:
   min_side: 512                   # Минимальная сторона изображения (в пикселях)
   accept_bw: false                # Принимать ли ч/б изображения (true/false)
-  extensions: [".jpg", ".jpeg"]  # Разрешаем webp, либо очистите список для приёма по Content-Type
+  extensions: [".jpg", ".jpeg", ".webp", ".png"]  # Разрешаем webp, либо очистите список для приёма по Content-Type
   orientation: "all"             # Ориентация: all|square|portrait|landscape
   save_format: "jpeg"            # "jpeg" | "original" — сохранить как JPEG либо в исходном формате
   jpeg_quality: 95                # Качество JPEG при save_format: jpeg
@@ -78,6 +78,7 @@ clip:
   model_filename: "onnx/model.onnx"           # Большой объединённый ONNX (визуал+текст)
   tokenizer_filename: "tokenizer.json"        # Токенайзер CLIP
   cache_dir: "./models/clip"                  # Куда кэшировать веса
+  revision: "12b36594d53414ecfba93c7200dbb7c7db3c900a"  # Коммит, где точно есть onnx/model.onnx
   prompts: ["a photo", "a painting", "an illustration", "a 3D render", "AI generated image", "a cartoon"]
   positive_index: 0                            # Индекс позитивного класса в списке prompts
 

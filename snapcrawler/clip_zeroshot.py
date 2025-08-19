@@ -40,6 +40,7 @@ class ClipConfig:
     model_filename: str = "onnx/model.onnx"
     tokenizer_filename: str = "tokenizer.json"
     cache_dir: str = "./models/clip"
+    revision: str | None = None
     prompts: List[str] = None  # type: ignore
     positive_index: int = 0
 
@@ -76,14 +77,24 @@ class ClipZeroShot:
         if hf_hub_download is None or Tokenizer is None:
             self._log.warning("huggingface_hub/tokenizers недоступны; CLIP-постфильтр отключён.")
             return
+        # Anchor cache dir to project root if relative
+        project_root = Path(__file__).resolve().parents[1]
         cache_dir = Path(self.cfg.cache_dir)
+        if not cache_dir.is_absolute():
+            cache_dir = (project_root / cache_dir).resolve()
         cache_dir.mkdir(parents=True, exist_ok=True)
         try:
             model_path = hf_hub_download(
-                repo_id=self.cfg.repo_id, filename=self.cfg.model_filename, cache_dir=str(cache_dir)
+                repo_id=self.cfg.repo_id,
+                filename=self.cfg.model_filename,
+                cache_dir=str(cache_dir),
+                revision=self.cfg.revision,
             )
             tok_path = hf_hub_download(
-                repo_id=self.cfg.repo_id, filename=self.cfg.tokenizer_filename, cache_dir=str(cache_dir)
+                repo_id=self.cfg.repo_id,
+                filename=self.cfg.tokenizer_filename,
+                cache_dir=str(cache_dir),
+                revision=self.cfg.revision,
             )
         except Exception as e:
             self._log.warning("Не удалось скачать файлы CLIP: %s", e)
