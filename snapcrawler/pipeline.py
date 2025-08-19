@@ -313,6 +313,7 @@ async def run(cfg: Dict[str, Any], db: Database) -> None:
         extensions=[e.lower() for e in cfg["image"].get("extensions", [])],
         skip_watermarked_urls=bool(cfg["image"].get("skip_watermarked_urls", True)),
         watermark_keywords=[w for w in cfg["image"].get("watermark_keywords", [])],
+        url_collect_limit=int(cfg["download"].get("url_collect_limit", 0)),
     )
     urls = await sm.collect_image_urls()
     if not urls:

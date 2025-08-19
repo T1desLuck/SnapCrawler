@@ -17,7 +17,8 @@ class SourceManager:
     def __init__(self, sources: Iterable[str], user_agents: List[str], request_delay: float = 1.0,
                  max_requests_per_site: int = 100, deep_parsing: bool = False,
                  deep_max_depth: int = 2, extensions: List[str] | None = None,
-                 skip_watermarked_urls: bool = True, watermark_keywords: List[str] | None = None) -> None:
+                 skip_watermarked_urls: bool = True, watermark_keywords: List[str] | None = None,
+                 url_collect_limit: int = 0) -> None:
         # Инициализация параметров до нормализации (используются ниже)
         self.user_agents = user_agents
         self.request_delay = request_delay
@@ -27,6 +28,7 @@ class SourceManager:
         self.extensions = [e.lower() for e in (extensions or [])]
         self.skip_watermarked_urls = bool(skip_watermarked_urls)
         self.watermark_keywords = [w.lower() for w in (watermark_keywords or [])]
+        self.url_collect_limit = max(0, int(url_collect_limit))
         self._seen_pages: Set[str] = set()
         self._per_site_count: dict[str, int] = {}
         self.log = get_logger()
@@ -174,6 +176,11 @@ class SourceManager:
             for url, md in self.sources:
                 q.append((url, 0, md))
 
+            self.log.info("Старт сбора URL: стартовых страниц=%d, глубина по умолчанию=%d, лимит URL=%s",
+                         len(self.sources), self.deep_max_depth, (self.url_collect_limit or "∞"))
+            processed_pages = 0
+            last_beat = 0
+
             while q:
                 page, depth, max_depth = q.popleft()
                 if page in self._seen_pages:
@@ -186,6 +193,16 @@ class SourceManager:
                 except Exception:
                     continue
                 urls.extend(imgs)
+                processed_pages += 1
+                # Heartbeat каждые ~25 страниц
+                if processed_pages - last_beat >= 25:
+                    self.log.info("URL-сбор: страниц обработано=%d, собрано ссылок=%d, в очереди=%d",
+                                   processed_pages, len(urls), len(q))
+                    last_beat = processed_pages
+                # Лимит на общее кол-во собранных URL (если задан)
+                if self.url_collect_limit > 0 and len(urls) >= self.url_collect_limit:
+                    self.log.info("Достигнут лимит сбора URL: %d. Останавливаем парсинг.", self.url_collect_limit)
+                    break
                 # Используем per-source max_depth; если 0 — обход только стартовой страницы
                 if depth < max_depth:
                     for npg in next_pages:

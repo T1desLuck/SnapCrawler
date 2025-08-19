@@ -3,7 +3,7 @@
 # Раздел проекта и общие цели
 project:
   name: "SnapCrawler"            # Имя проекта (для логов/отчетов)
-  storage_path: "./download"      # Папка для сохранения изображений (БД будет в корне проекта)
+  storage_path: "./dataset"       # Папка для сохранения изображений (БД будет в корне проекта)
   max_folder_size_mb: 0        # Лимит размера папки (в МБ). 0 = без ограничений
   target_images: 150000           # Целевое число изображений для сбора. 0 = без лимита
   statistics_enabled: true        # Собирать базовую статистику (в БД/логах)
@@ -55,6 +55,7 @@ download:
   request_delay: 0.6              # Базовая задержка между запросами (сек) + джиттер
   max_requests_per_site: 500      # Лимит запросов на один домен
   circuit_breaker_enabled: true   # Включить circuit breaker (пауза при 429/ошибках)
+  url_collect_limit: 0            # 0 — без лимита; иначе ограничить число собранных URL на этапе парсинга
   user_agents:                    # Ротация User‑Agent для «незаметности»
     - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15"
