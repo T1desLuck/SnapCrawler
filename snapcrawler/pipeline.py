@@ -273,6 +273,16 @@ async def run(cfg: Dict[str, Any], db: Database) -> None:
     log = get_logger()
     storage_root = Path(cfg["project"]["storage_path"]).resolve()
     storage_root.mkdir(parents=True, exist_ok=True)
+    # Стартовые параметры
+    log.info(
+        "Старт пайплайна: storage=%s, threads=%s, per_site=%s, deep_parsing=%s(depth=%s), target=%s",
+        str(storage_root),
+        cfg["download"]["threads"],
+        cfg["download"].get("per_site_concurrency", 2),
+        cfg["download"]["deep_parsing"],
+        cfg["download"].get("deep_max_depth", 2),
+        cfg["project"].get("target_images", 0),
+    )
 
     # Collect URLs
     sm = SourceManager(
@@ -290,6 +300,7 @@ async def run(cfg: Dict[str, Any], db: Database) -> None:
     if not urls:
         log.warning("Не найдено ни одной ссылки на изображения из заданных источников.")
         return
+    log.info("К загрузке подготовлено URL: %d", len(urls))
 
     # Prepare HTTP session
     conn = aiohttp.TCPConnector(limit=int(cfg["download"]["threads"]))
@@ -339,6 +350,7 @@ async def run(cfg: Dict[str, Any], db: Database) -> None:
                 break
             t = asyncio.create_task(guarded(u))
             tasks.append(t)
+        last_beat = time.time()
         for fut in asyncio.as_completed(tasks):
             try:
                 res = await fut
@@ -350,6 +362,12 @@ async def run(cfg: Dict[str, Any], db: Database) -> None:
                         if not t.done():
                             t.cancel()
                     break
+                # Периодический heartbeat каждые ~10 сек
+                now = time.time()
+                if now - last_beat >= 10:
+                    in_flight = sum(1 for t in tasks if not t.done())
+                    log.info("Прогресс: сохранено=%d, цель=%s, задач в работе=%d", saved_count, target or "∞", in_flight)
+                    last_beat = now
             except Exception:
                 continue
 

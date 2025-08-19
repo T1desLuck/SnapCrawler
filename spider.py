@@ -63,7 +63,8 @@ def main(argv: list[str] | None = None) -> int:
     cfg = load_config(Path(args.config))
     setup_logging()
 
-    db_path = Path(cfg["project"]["storage_path"]) / "snapcrawler.sqlite3"
+    # Храним БД в корне проекта, чтобы папка загрузок оставалась чисто с изображениями
+    db_path = Path("snapcrawler.sqlite3").resolve()
     db = Database(db_path)
     db.init()
 

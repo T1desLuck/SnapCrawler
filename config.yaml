@@ -3,20 +3,20 @@
 # Раздел проекта и общие цели
 project:
   name: "SnapCrawler"            # Имя проекта (для логов/отчетов)
-  storage_path: "./dataset"      # Папка для сохранения изображений и БД (SQLite)
+  storage_path: "./download"      # Папка для сохранения изображений (БД будет в корне проекта)
   max_folder_size_mb: 1024        # Лимит размера папки (в МБ). 0 = без ограничений
-  target_images: 100000           # Целевое число изображений для сбора. 0 = без лимита
+  target_images: 150000           # Целевое число изображений для сбора. 0 = без лимита
   statistics_enabled: true        # Собирать базовую статистику (в БД/логах)
 
 # Правила фильтрации и предобработки изображений
 image:
   min_side: 512                   # Минимальная сторона изображения (в пикселях)
   accept_bw: false                # Принимать ли ч/б изображения (true/false)
-  extensions: [".jpg", ".jpeg", ".png"]  # Используется при save_format: original (фильтр допустимых форматов)
+  extensions: [".jpg", ".jpeg"]  # Разрешаем webp, либо очистите список для приёма по Content-Type
   orientation: "all"             # Ориентация: all|square|portrait|landscape
   save_format: "jpeg"            # "jpeg" | "original" — сохранить как JPEG либо в исходном формате
   jpeg_quality: 95                # Качество JPEG при save_format: jpeg
-  skip_watermarked_urls: true     # Пропускать URL с признаками водяных знаков/превью
+  skip_watermarked_urls: false    # На старте отключим, чтобы не потерять источники; потом можно включить
   watermark_keywords:             # Слова в URL, по которым считаем, что там водяной знак/превью
     - watermark
     - wm
@@ -31,7 +31,7 @@ image:
 
 # Настройки нейросетевого фильтра (опционально). Если модели нет — автодеактивация.
 classifier:
-  enable: true                    # Включить фильтр фото/не-фото
+  enable: false                   # Отключаем до-скачивания; запускать будем пост-фильтром
   model_path: "./models/photo_filter.onnx"  # Путь к ONNX‑модели
   batch_size: 16                  # (Сейчас без эффекта: батч‑инференс не реализован)
   threshold: 0.5                  # Порог уверенности (0..1). Ниже — отбрасываем
@@ -45,7 +45,7 @@ deduplication:
 
 # Загрузка и парсинг источников
 download:
-  threads: 6                      # Одновременные запросы (можно 6–8 при хорошем канале)
+  threads: 8                      # Одновременные запросы (можно 6–8 при хорошем канале)
   deep_parsing: true              # Глубокий парсинг ссылок <a> в пределах домена (BFS)
   deep_max_depth: 3               # Максимальная глубина обхода при deep_parsing (BFS по домену)
   per_site_concurrency: 2         # Параллельные запросы на один домен
@@ -57,15 +57,16 @@ download:
     - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15"
   proxies: []                     # [зарезервировано] список прокси (не используется в текущей версии)
-  sources:                        # Страницы-источники с <img> (лучше CC0/Public Domain)
-    - "https://commons.wikimedia.org/wiki/Category:Photographs"
-    - "https://commons.wikimedia.org/wiki/Category:Featured_pictures"
-    - "https://www.flickr.com/commons/uses"
-    - "https://www.flickr.com/creativecommons/by-2.0/"      # CC BY; убедитесь в совместимости
-    - "https://www.pexels.com/popular-photos/"               # Бесплатные стоки (условия проверяйте сами)
-    - "https://unsplash.com/t/wallpapers"                    # Бесплатные (условия проверяйте сами)
-    - "https://publicdomainpictures.net/en/browse-author.php"
-    - "https://pixnio.com/category/people-photos"            # Public domain (проверьте подписи)
+  sources:                        # Стартовые сайты (домашние страницы или разделы)
+    - "https://unsplash.com"
+    - "https://www.pexels.com"
+    - "https://pixabay.com"
+    - "https://stocksnap.io"
+    - "https://burst.shopify.com"
+    - "https://kaboompics.com"
+    - "https://www.freeimages.com"
+    - "https://www.flickr.com"
+    - "https://commons.wikimedia.org"
 
 # Упаковка датасета
 packing:
