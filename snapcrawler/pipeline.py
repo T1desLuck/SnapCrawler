@@ -211,7 +211,18 @@ async def worker(url: str, cfg: Dict[str, Any], db: Database, session: aiohttp.C
     if not cb.allow(url):
         return None
 
-    headers = {"User-Agent": pick_user_agent(cfg["download"]["user_agents"])}
+    # Формируем заголовки для скачивания изображений
+    # Многие сайты требуют Referer (иначе 403/отказ), добавим его по домену картинки
+    from urllib.parse import urlparse
+    pu = urlparse(url)
+    referer = f"{pu.scheme}://{pu.netloc}/" if pu.scheme and pu.netloc else None
+    headers = {
+        "User-Agent": pick_user_agent(cfg["download"]["user_agents"]),
+        "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+    if referer:
+        headers["Referer"] = referer
     # Кол-во повторов и экспоненциальный бэкофф берём из конфига
     retries = int(cfg["download"].get("image_retries", 3))
     backoff_base = float(cfg["download"].get("backoff_base", 2.0))
@@ -230,6 +241,9 @@ async def worker(url: str, cfg: Dict[str, Any], db: Database, session: aiohttp.C
     else:
         if last_status == 429:
             log.debug("Получен 429, цепь для домена %s временно разомкнута", domain_of(url))
+        # Учёт финальной неудачи HTTP
+        key = f"http_{last_status if last_status is not None else 'err'}"
+        log_rate[key] = log_rate.get(key, 0) + 1
         return None
 
     pp = preprocess_image(
@@ -240,6 +254,8 @@ async def worker(url: str, cfg: Dict[str, Any], db: Database, session: aiohttp.C
         wm_cfg=cfg["image"].get("watermark_pixel_filter"),
     )
     if pp is None:
+        # Причину точно не знаем (капсулировано в preprocess), помечаем как общий отсеев
+        log_rate["preprocess_drop"] = log_rate.get("preprocess_drop", 0) + 1
         return None
     im, w, h = pp
 
@@ -248,24 +264,31 @@ async def worker(url: str, cfg: Dict[str, Any], db: Database, session: aiohttp.C
     if clf is not None and clf.enabled:
         score = clf.is_photo(im)
         if score is not None and score < float(cfg["classifier"]["threshold"]):
+            log_rate["classifier_reject"] = log_rate.get("classifier_reject", 0) + 1
             return None
 
     # Optional pixel screenshot heuristic
     ss_cfg = cfg["image"].get("screenshot_pixel_filter") or {}
     if bool(ss_cfg.get("enable", False)):
-        if _screenshot_pixel_heuristic(im, ss_cfg):
-            return None
+        try:
+            if _screenshot_pixel_heuristic(im, ss_cfg):
+                log_rate["screenshot_pixel"] = log_rate.get("screenshot_pixel", 0) + 1
+                return None
+        except Exception:
+            pass
 
     # Optional logo alpha heuristic
     la_cfg = cfg["image"].get("logo_alpha_filter") or {}
     if bool(la_cfg.get("enable", False)):
         if _logo_alpha_heuristic(im, la_cfg):
+            log_rate["logo_alpha"] = log_rate.get("logo_alpha", 0) + 1
             return None
 
     # Optional inline CLIP zero-shot filter
     if clip_inline is not None and clip_inline.enabled and bool(cfg["clip"].get("enable_filter", False)):
         clip_score = float(clip_inline.photo_score(im))
         if clip_score < float(cfg["clip"].get("threshold", 0.60)):
+            log_rate["clip_reject"] = log_rate.get("clip_reject", 0) + 1
             return None
 
     # Compute pHash and deduplicate
@@ -274,12 +297,14 @@ async def worker(url: str, cfg: Dict[str, Any], db: Database, session: aiohttp.C
     if cfg["deduplication"]["enable"]:
         # quick exact check
         if db.has_exact_hash(ph):
+            log_rate["dup"] = log_rate.get("dup", 0) + 1
             return None
         # near-duplicate check via BK-tree
         bk: Optional[BKTree] = known_hashes  # type: ignore[assignment]
         if isinstance(bk, BKTree):
             matches = bk.search(ph, thr)
             if matches:
+                log_rate["near_dup"] = log_rate.get("near_dup", 0) + 1
                 return None
         # insert new hash
         db.insert_hash(ph)
@@ -508,9 +533,14 @@ async def run(cfg: Dict[str, Any], db: Database) -> None:
                 now = time.time()
                 if now - last_beat >= 10:
                     in_queue = q.qsize()
+                    # Короткая сводка по причинам отсевов (топ-4 счётчиков)
+                    counters = {k: v for k, v in log_rate.items() if not k.startswith("ok")}
+                    top = sorted(counters.items(), key=lambda kv: kv[1], reverse=True)[:4]
+                    drops = ", ".join(f"{k}={v}" for k, v in top) if top else ""
                     log.info(
-                        "Прогресс: сохранено=%d, цель=%s, в очереди=%d",
+                        "Прогресс: сохранено=%d, цель=%s, в очереди=%d%s",
                         saved_count_box["n"], target or "∞", in_queue,
+                        ("; отсеяно: " + drops) if drops else "",
                     )
                     last_beat = now
 

@@ -5,6 +5,7 @@ from urllib.parse import urljoin, urlsplit, urlunsplit
 from collections import deque
 
 from bs4 import BeautifulSoup
+import json
 import aiohttp
 
 from .logging_setup import get_logger
@@ -160,6 +161,26 @@ class SourceManager:
                 return
             urls.append(full)
 
+        # Поддержка <source> внутри <picture>: используем атрибуты srcset/type
+        if tag.name == "source":
+            srcset = tag.get("srcset") or tag.get("data-srcset")
+            if srcset:
+                pairs: List[Tuple[int, str]] = []
+                for part in srcset.split(","):
+                    p = part.strip().split()
+                    if not p:
+                        continue
+                    u = p[0]
+                    w = 0
+                    if len(p) > 1 and p[1].endswith("w"):
+                        try:
+                            w = int(p[1][:-1])
+                        except Exception:
+                            w = 0
+                    pairs.append((w, u))
+                for _, u in sorted(pairs, key=lambda t: t[0], reverse=True):
+                    add(u)
+
         srcset = tag.get("srcset") or tag.get("data-srcset")
         if srcset:
             # format: "url1 320w, url2 640w, url3 1280w"
@@ -179,8 +200,8 @@ class SourceManager:
             for _, u in sorted(pairs, key=lambda t: t[0], reverse=True):
                 add(u)
 
-        # Fallbacks: data-original, data-src, src
-        for attr in ("data-original", "data-src", "src"):
+        # Fallbacks: распространённые ленивые атрибуты и обычный src
+        for attr in ("data-original", "data-src", "data-lazy-src", "data-llsrc", "data-image", "data-url", "src"):
             val = tag.get(attr)
             if val:
                 add(val)
@@ -209,9 +230,74 @@ class SourceManager:
             return [], []
         soup = BeautifulSoup(html, "lxml")
         imgs: List[str] = []
+        # Извлекаем из <img>
         for tag in soup.find_all("img"):
             for candidate in self._best_img_src(url, tag):
                 imgs.append(candidate)
+        # Извлекаем из <picture><source>
+        for pict in soup.find_all("picture"):
+            for src in pict.find_all("source"):
+                for candidate in self._best_img_src(url, src):
+                    imgs.append(candidate)
+        # Извлекаем из <noscript> (часто содержит <img> для no-JS)
+        for ns in soup.find_all("noscript"):
+            try:
+                ns_soup = BeautifulSoup(ns.get_text() or "", "lxml")
+                for tag in ns_soup.find_all("img"):
+                    for candidate in self._best_img_src(url, tag):
+                        imgs.append(candidate)
+            except Exception:
+                pass
+        # OpenGraph превью, иногда указывает на оригинал
+        for meta in soup.find_all("meta"):
+            prop = (meta.get("property") or meta.get("name") or "").lower()
+            if prop in ("og:image", "twitter:image", "twitter:image:src"):
+                content = meta.get("content")
+                if content:
+                    cand = urljoin(url, content)
+                    if self._passes_ext_filter(cand) and not (self._is_watermarked_url(cand) or self._is_logo_url(cand) or self._is_screenshot_url(cand)):
+                        imgs.append(cand)
+        # Извлекаем из inline CSS: style="background-image:url(...)"
+        for el in soup.find_all(style=True):
+            style = el.get("style") or ""
+            low = style.lower()
+            if "background-image" in low and "url(" in low:
+                try:
+                    start = low.find("url(") + 4
+                    end = low.find(")", start)
+                    if end > start:
+                        raw = style[start:end].strip(" \"'\t")
+                        cand = urljoin(url, raw)
+                        if self._passes_ext_filter(cand) and not (self._is_watermarked_url(cand) or self._is_logo_url(cand) or self._is_screenshot_url(cand)):
+                            imgs.append(cand)
+                except Exception:
+                    pass
+        # Извлекаем из JSON-LD (<script type="application/ld+json">)
+        for sc in soup.find_all("script", {"type": "application/ld+json"}):
+            try:
+                data = json.loads(sc.string or sc.get_text() or "{}")
+            except Exception:
+                continue
+            def _add_img(val):
+                if isinstance(val, str):
+                    cand = urljoin(url, val)
+                    if self._passes_ext_filter(cand) and not (self._is_watermarked_url(cand) or self._is_logo_url(cand) or self._is_screenshot_url(cand)):
+                        imgs.append(cand)
+                elif isinstance(val, list):
+                    for v in val:
+                        _add_img(v)
+                elif isinstance(val, dict):
+                    _add_img(val.get("url") or val.get("contentUrl") or val.get("thumbnailUrl"))
+            if isinstance(data, list):
+                for item in data:
+                    if isinstance(item, dict):
+                        for key in ("image", "imageUrl", "image_url", "thumbnailUrl", "contentUrl"):
+                            if key in item:
+                                _add_img(item[key])
+            elif isinstance(data, dict):
+                for key in ("image", "imageUrl", "image_url", "thumbnailUrl", "contentUrl"):
+                    if key in data:
+                        _add_img(data[key])
         next_pages: List[str] = []
         if self.deep_parsing:
             base_domain = domain_of(url)
@@ -311,7 +397,8 @@ class SourceManager:
         Вместо возврата полного списка, отдаёт URL по мере нахождения (BFS),
         применяя те же фильтры и ограничения. Позволяет запускать загрузку параллельно со сбором.
         """
-        conn = aiohttp.TCPConnector(limit=8)
+        # Лимит соединений коллектора управляется download.collector_conn_limit
+        conn = aiohttp.TCPConnector(limit=self.collector_conn_limit)
         async with aiohttp.ClientSession(connector=conn) as session:
             q: deque[Tuple[str, int, int]] = deque()
             for url, md in self.sources:
