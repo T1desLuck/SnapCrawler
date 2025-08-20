@@ -18,7 +18,7 @@ def setup_logging(log_dir: Path | None = None) -> None:
         return
 
     logger = logging.getLogger(_LOGGER_NAME)
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
 
     formatter = logging.Formatter(
         fmt="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
@@ -27,7 +27,7 @@ def setup_logging(log_dir: Path | None = None) -> None:
 
     # Консольный обработчик логов
     ch = logging.StreamHandler()
-    ch.setLevel(logging.INFO)
+    ch.setLevel(logging.DEBUG)
     ch.setFormatter(formatter)
     logger.addHandler(ch)
 
@@ -35,7 +35,7 @@ def setup_logging(log_dir: Path | None = None) -> None:
     try:
         log_path = Path("snapcrawler.log") if log_dir is None else Path(log_dir) / "snapcrawler.log"
         fh = RotatingFileHandler(log_path, maxBytes=2_000_000, backupCount=3, encoding="utf-8")
-        fh.setLevel(logging.INFO)
+        fh.setLevel(logging.DEBUG)
         fh.setFormatter(formatter)
         logger.addHandler(fh)
     except Exception:

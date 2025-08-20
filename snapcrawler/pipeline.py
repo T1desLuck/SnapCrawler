@@ -72,6 +72,9 @@ async def fetch_bytes(session: aiohttp.ClientSession, url: str, headers: Dict[st
             # Принимаем, если явно image/*
             if "image" in ctype:
                 return data, 200
+            # Если это точно не картинка (html/json/xml/js) — помечаем как 415 (unsupported media type)
+            if any(t in ctype for t in ("text/", "html", "json", "xml", "javascript")):
+                return None, 415
             # Разрешаем generic типы — многие CDN отдают octet-stream/без заголовка
             if (not ctype) or ("octet-stream" in ctype):
                 return data, 200
@@ -79,7 +82,8 @@ async def fetch_bytes(session: aiohttp.ClientSession, url: str, headers: Dict[st
             url_low = url.lower().split("?", 1)[0]
             if any(url_low.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff")):
                 return data, 200
-            return None, resp.status
+            # Иначе — не поддерживаемый тип
+            return None, 415
     except aiohttp.ClientResponseError as e:
         return None, e.status
     except Exception:
@@ -203,7 +207,7 @@ def hamming(a: str, b: str) -> int:
     return bin(int(a, 16) ^ int(b, 16)).count("1")
 
 
-async def worker(url: str, cfg: Dict[str, Any], db: Database, session: aiohttp.ClientSession,
+async def worker(url: str, referer: Optional[str], cfg: Dict[str, Any], db: Database, session: aiohttp.ClientSession,
                  cb: CircuitBreaker, storage_root: Path, known_hashes: List[str],
                  log_rate: Dict[str, int], clf: Optional[PhotoClassifier],
                  clip_inline: Optional[ClipZeroShot]) -> Optional[Path]:
@@ -212,17 +216,25 @@ async def worker(url: str, cfg: Dict[str, Any], db: Database, session: aiohttp.C
         return None
 
     # Формируем заголовки для скачивания изображений
-    # Многие сайты требуют Referer (иначе 403/отказ), добавим его по домену картинки
+    # Многие сайты требуют Referer (иначе 403/отказ)
+    # Если известна страница-источник — используем её, иначе реферер по домену картинки
     from urllib.parse import urlparse
     pu = urlparse(url)
-    referer = f"{pu.scheme}://{pu.netloc}/" if pu.scheme and pu.netloc else None
+    fallback_referer = f"{pu.scheme}://{pu.netloc}/" if pu.scheme and pu.netloc else None
     headers = {
         "User-Agent": pick_user_agent(cfg["download"]["user_agents"]),
         "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
+        # Доп. заголовки как у браузера, чтобы изображения охотнее отдавались
+        "Sec-Fetch-Dest": "image",
+        "Sec-Fetch-Mode": "no-cors",
+        "Sec-Fetch-Site": "cross-site",
+        "Pragma": "no-cache",
+        "Cache-Control": "no-cache",
     }
-    if referer:
-        headers["Referer"] = referer
+    headers_ref = referer or fallback_referer
+    if headers_ref:
+        headers["Referer"] = headers_ref
     # Кол-во повторов и экспоненциальный бэкофф берём из конфига
     retries = int(cfg["download"].get("image_retries", 3))
     backoff_base = float(cfg["download"].get("backoff_base", 2.0))
@@ -237,6 +249,12 @@ async def worker(url: str, cfg: Dict[str, Any], db: Database, session: aiohttp.C
             break
         # backoff
         cb.report(url, ok=False, code=status)
+        try:
+            # Диагностика: первые несколько неудач логируем с реферером
+            if attempt == 0:
+                log.debug("Загрузка не удалась: %s status=%s referer=%s", url, status, headers.get("Referer"))
+        except Exception:
+            pass
         await asyncio.sleep(backoff_base ** attempt)
     else:
         if last_status == 429:
@@ -244,6 +262,11 @@ async def worker(url: str, cfg: Dict[str, Any], db: Database, session: aiohttp.C
         # Учёт финальной неудачи HTTP
         key = f"http_{last_status if last_status is not None else 'err'}"
         log_rate[key] = log_rate.get(key, 0) + 1
+        try:
+            # Финальная диагностика неудачи скачивания
+            log.info("Провал скачивания: %s status=%s referer=%s", url, last_status, headers.get("Referer"))
+        except Exception:
+            pass
         return None
 
     pp = preprocess_image(
@@ -488,22 +511,36 @@ async def run(cfg: Dict[str, Any], db: Database) -> None:
         stop_event = asyncio.Event()
 
         # Общая очередь URL с backpressure
-        q: asyncio.Queue[Optional[str]] = asyncio.Queue(maxsize=max(threads * 20, 100))
+        # Очередь пар (url, referer)
+        q: asyncio.Queue[Optional[Tuple[str, Optional[str]]]] = asyncio.Queue(maxsize=max(threads * 20, 100))
 
-        async def guarded(u: str):
+        # Таймер авто-остановки для диагностики (если задан run_seconds)
+        run_seconds = int(cfg["download"].get("run_seconds", 0) or 0)
+        timer_task: Optional[asyncio.Task] = None
+        if run_seconds > 0:
+            async def stop_after():
+                try:
+                    await asyncio.sleep(run_seconds)
+                    stop_event.set()
+                except asyncio.CancelledError:
+                    pass
+            timer_task = asyncio.create_task(stop_after())
+
+        async def guarded(item: Tuple[str, Optional[str]]):
             async with sem:
+                u, ref = item
                 d = domain_of(u)
                 if d not in domain_sems:
                     domain_sems[d] = asyncio.Semaphore(per_site)
                 async with domain_sems[d]:
-                    return await worker(u, cfg, db, session, cb, storage_root, known_hashes, log_rate, clf, clip_inline)
+                    return await worker(u, ref, cfg, db, session, cb, storage_root, known_hashes, log_rate, clf, clip_inline)
 
         async def producer():
             try:
-                async for u in sm.iter_image_urls():
+                async for item in sm.iter_image_urls():  # item: (url, referer)
                     if stop_event.is_set():
                         break
-                    await q.put(u)
+                    await q.put(item)
             finally:
                 # Сигнализируем завершение
                 for _ in range(threads):
@@ -514,12 +551,12 @@ async def run(cfg: Dict[str, Any], db: Database) -> None:
             while True:
                 if stop_event.is_set() and q.empty():
                     break
-                u = await q.get()
-                if u is None:
+                item = await q.get()
+                if item is None:
                     q.task_done()
                     break
                 try:
-                    res = await guarded(u)
+                    res = await guarded(item)
                     if res is not None:
                         saved_count_box["n"] += 1
                 finally:
@@ -557,10 +594,18 @@ async def run(cfg: Dict[str, Any], db: Database) -> None:
                 await t
             except asyncio.CancelledError:
                 pass
+        if timer_task:
+            try:
+                timer_task.cancel()
+            except Exception:
+                pass
 
     if cfg["project"]["max_folder_size_mb"] > 0:
         trigger = auto_pack_if_needed(storage_root, int(cfg["project"]["max_folder_size_mb"]))
         if trigger is not None and cfg["packing"]["auto_pack"]:
             log.info("Размер папки превышен; выполните 'python spider.py pack' для архивации датасета.")
 
+    # Финальная краткая сводка отсевов (топ-6)
+    # Примечание: log_rate локален в worker/consumer, поэтому дополнительно не доступен здесь.
+    # Хартбит уже печатал топ причин каждые ~10 сек.
     log.info("Пайплайн завершён. Статистика: %s", db.get_basic_stats())
