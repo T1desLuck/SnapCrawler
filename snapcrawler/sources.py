@@ -20,7 +20,8 @@ class SourceManager:
                  skip_watermarked_urls: bool = True, watermark_keywords: List[str] | None = None,
                  url_collect_limit: int = 0,
                  skip_screenshot_urls: bool = False, screenshot_keywords: List[str] | None = None,
-                 skip_logo_urls: bool = False, logo_keywords: List[str] | None = None) -> None:
+                 skip_logo_urls: bool = False, logo_keywords: List[str] | None = None,
+                 allow_subdomains: bool = True) -> None:
         # Инициализация параметров до нормализации (используются ниже)
         self.user_agents = user_agents
         self.request_delay = request_delay
@@ -35,6 +36,7 @@ class SourceManager:
         self.skip_logo_urls = bool(skip_logo_urls)
         self.logo_keywords = [w.lower() for w in (logo_keywords or [])]
         self.url_collect_limit = max(0, int(url_collect_limit))
+        self.allow_subdomains = bool(allow_subdomains)
         self._seen_pages: Set[str] = set()
         self._per_site_count: dict[str, int] = {}
         self.log = get_logger()
@@ -176,7 +178,14 @@ class SourceManager:
                 full = urljoin(url, href)
                 if full in self._seen_pages:
                     continue
-                if domain_of(full) != base_domain:
+                target_domain = domain_of(full)
+                same_site = (
+                    target_domain == base_domain or
+                    (self.allow_subdomains and (
+                        target_domain.endswith("." + base_domain) or base_domain.endswith("." + target_domain)
+                    ))
+                )
+                if not same_site:
                     # ссылка в другой домен — пропускаем как страницу, но если это прямая картинка — добавим
                     cand = self._candidate_image_from_link(url, href)
                     if cand:

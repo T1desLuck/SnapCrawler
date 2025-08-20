@@ -69,10 +69,11 @@ deduplication:
 
 # Загрузка и парсинг источников
 download:
-  threads: 8                             # Одновременные запросы (можно 6–8 при хорошем канале)
+  threads: 6                             # Одновременные запросы (можно 6–8 при хорошем канале)
   deep_parsing: true                     # Глубокий парсинг ссылок <a> в пределах домена (BFS)
-  deep_max_depth: 20                      # Максимальная глубина обхода при deep_parsing (BFS по домену)
-  per_site_concurrency: 3                # Параллельные запросы на один домен
+  deep_max_depth: 10                      # Максимальная глубина обхода при deep_parsing (BFS по домену)
+  allow_subdomains: true                 # Разрешать переход на поддомены того же сайта при BFS
+  per_site_concurrency: 2                # Параллельные запросы на один домен
   enable_auto_discovery: true            # [зарезервировано] автообнаружение (sitemap/RSS) — не используется
   request_delay: 1.0                     # Базовая задержка между запросами (сек) + джиттер
   max_requests_per_site: 5000            # Лимит запросов на один домен
@@ -83,12 +84,12 @@ download:
     - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15"
   proxies: []                            # [зарезервировано] список прокси (не используется в текущей версии)
   sources:
-    - "https://commons.wikimedia.org/wiki/Main_Page"
-    - url: "https://pixabay.com/photos"
-      deep: true
-      max_depth: 5
     - "https://unsplash.com"
     - "https://www.pexels.com"
+    - url: "https://pixabay.com/photos"
+      deep: true
+      max_depth: 100
+    - "https://commons.wikimedia.org"
 
 # Настройки CLIP zero-shot (ONNX) для пост-фильтра
 clip:

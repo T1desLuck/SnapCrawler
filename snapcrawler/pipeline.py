@@ -391,6 +391,7 @@ async def run(cfg: Dict[str, Any], db: Database) -> None:
         screenshot_keywords=[w for w in cfg["image"].get("screenshot_keywords", [])],
         skip_logo_urls=bool(cfg["image"].get("skip_logo_urls", False)),
         logo_keywords=[w for w in cfg["image"].get("logo_keywords", [])],
+        allow_subdomains=bool(cfg["download"].get("allow_subdomains", True)),
     )
 
     # Prepare HTTP session
