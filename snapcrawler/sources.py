@@ -18,7 +18,9 @@ class SourceManager:
                  max_requests_per_site: int = 100, deep_parsing: bool = False,
                  deep_max_depth: int = 2, extensions: List[str] | None = None,
                  skip_watermarked_urls: bool = True, watermark_keywords: List[str] | None = None,
-                 url_collect_limit: int = 0) -> None:
+                 url_collect_limit: int = 0,
+                 skip_screenshot_urls: bool = False, screenshot_keywords: List[str] | None = None,
+                 skip_logo_urls: bool = False, logo_keywords: List[str] | None = None) -> None:
         # Инициализация параметров до нормализации (используются ниже)
         self.user_agents = user_agents
         self.request_delay = request_delay
@@ -28,6 +30,10 @@ class SourceManager:
         self.extensions = [e.lower() for e in (extensions or [])]
         self.skip_watermarked_urls = bool(skip_watermarked_urls)
         self.watermark_keywords = [w.lower() for w in (watermark_keywords or [])]
+        self.skip_screenshot_urls = bool(skip_screenshot_urls)
+        self.screenshot_keywords = [w.lower() for w in (screenshot_keywords or [])]
+        self.skip_logo_urls = bool(skip_logo_urls)
+        self.logo_keywords = [w.lower() for w in (logo_keywords or [])]
         self.url_collect_limit = max(0, int(url_collect_limit))
         self._seen_pages: Set[str] = set()
         self._per_site_count: dict[str, int] = {}
@@ -73,6 +79,18 @@ class SourceManager:
         low = url.lower()
         return any(k in low for k in self.watermark_keywords)
 
+    def _is_screenshot_url(self, url: str) -> bool:
+        if not self.skip_screenshot_urls or not self.screenshot_keywords:
+            return False
+        low = url.lower()
+        return any(k in low for k in self.screenshot_keywords)
+
+    def _is_logo_url(self, url: str) -> bool:
+        if not self.skip_logo_urls or not self.logo_keywords:
+            return False
+        low = url.lower()
+        return any(k in low for k in self.logo_keywords)
+
     def _passes_ext_filter(self, url: str) -> bool:
         if not self.extensions:
             return True
@@ -87,6 +105,10 @@ class SourceManager:
                 return
             full = urljoin(base_url, u)
             if self._is_watermarked_url(full):
+                return
+            if self._is_logo_url(full):
+                return
+            if self._is_screenshot_url(full):
                 return
             if not self._passes_ext_filter(full):
                 return
@@ -120,7 +142,7 @@ class SourceManager:
 
     def _candidate_image_from_link(self, base_url: str, href: str) -> str | None:
         full = urljoin(base_url, href)
-        if self._is_watermarked_url(full):
+        if self._is_watermarked_url(full) or self._is_screenshot_url(full) or self._is_logo_url(full):
             return None
         low = full.lower()
         # 1) Явные расширения картинки
@@ -212,6 +234,10 @@ class SourceManager:
         # Фильтр-страховка по ключевым словам (если попали из вне)
         if self.skip_watermarked_urls and self.watermark_keywords:
             urls = [u for u in urls if not self._is_watermarked_url(u)]
+        if self.skip_screenshot_urls and self.screenshot_keywords:
+            urls = [u for u in urls if not self._is_screenshot_url(u)]
+        if self.skip_logo_urls and self.logo_keywords:
+            urls = [u for u in urls if not self._is_logo_url(u)]
 
         # Удаляем дубликаты URL
         deduped = list(dict.fromkeys(urls))
@@ -256,6 +282,10 @@ class SourceManager:
                     if u in yielded_set:
                         continue
                     if self.skip_watermarked_urls and self.watermark_keywords and self._is_watermarked_url(u):
+                        continue
+                    if self.skip_screenshot_urls and self.screenshot_keywords and self._is_screenshot_url(u):
+                        continue
+                    if self.skip_logo_urls and self.logo_keywords and self._is_logo_url(u):
                         continue
                     yielded_set.add(u)
                     yield u

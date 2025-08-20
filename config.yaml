@@ -2,32 +2,54 @@
 
 # Раздел проекта и общие цели
 project:
-  name: "SnapCrawler"            # Имя проекта (для логов/отчетов)
+  name: "SnapCrawler"             # Имя проекта (для логов/отчетов)
   storage_path: "./dataset"       # Папка для сохранения изображений (БД будет в корне проекта)
-  max_folder_size_mb: 0        # Лимит размера папки (в МБ). 0 = без ограничений
+  max_folder_size_mb: 0           # Лимит размера папки (в МБ). 0 = без ограничений
   target_images: 150000           # Целевое число изображений для сбора. 0 = без лимита
   statistics_enabled: true        # Собирать базовую статистику (в БД/логах)
 
 # Правила фильтрации и предобработки изображений
 image:
-  min_side: 512                   # Минимальная сторона изображения (в пикселях)
-  accept_bw: false                # Принимать ли ч/б изображения (true/false)
+  min_side: 512                    # Минимальная сторона изображения (в пикселях)
+  accept_bw: false                 # Принимать ли ч/б изображения (true/false)
   extensions: [".jpg", ".jpeg", ".webp", ".png"]  # Разрешаем webp, либо очистите список для приёма по Content-Type
-  orientation: "all"             # Ориентация: all|square|portrait|landscape
-  save_format: "original"            # "jpeg" | "original" — сохранить как JPEG либо в исходном формате
+  orientation: "all"               # Ориентация: all|square|portrait|landscape
+  save_format: "original"          # "jpeg" | "original" — сохранить как JPEG либо в исходном формате
   jpeg_quality: 100                # Качество JPEG при save_format: jpeg
-  skip_watermarked_urls: false    # На старте отключим, чтобы не потерять источники; потом можно включить
-  watermark_keywords:             # Слова в URL, по которым считаем, что там водяной знак/превью
+  skip_watermarked_urls: true      # На старте отключим, чтобы не потерять источники; потом можно включить
+  watermark_keywords:              # Слова в URL, по которым считаем, что там водяной знак/превью
     - watermark
     - wm
-    - overlay
-    - preview
-    - thumb
   watermark_pixel_filter:         # Простой пиксельный фильтр водяных знаков (по краям)
     enable: false
     band_ratio: 0.15
     edge_threshold: 25
     edge_density: 0.08
+  # URL-фильтр по ключевым словам для скриншотов/гайдов (часто ведут на не-фото)
+  skip_screenshot_urls: true
+  screenshot_keywords:
+    - screenshot
+    - screen
+  # Простая эвристика распознавания скриншотов по пикселям (заголовочные полосы/текстовые края)
+  screenshot_pixel_filter:
+    enable: true
+    top_band_ratio: 0.06         # Доля высоты для проверки ровной верхней полосы (титл-бар)
+    top_band_var_max: 12.0       # Максимальная дисперсия в верхней полосе (низкая = почти ровный цвет)
+    edge_threshold: 28           # Порог градиента для подсчёта краёв
+    edge_density_center: 0.18    # Порог плотности «текстовых» краёв в центральной области
+
+    # URL-фильтр логотипов/иконок
+    skip_logo_urls: true
+    logo_keywords:
+      - logo
+      - favicon
+      - icon
+      - header-logo
+    # Эвристика для логотипов с альфа-каналом (полупрозрачный/прозрачный фон)
+    logo_alpha_filter:
+      enable: true
+      alpha_threshold: 24         # Порог прозрачности (0..255): <= считаем прозрачным
+      transparent_fraction: 0.30  # Если доля прозрачных пикселей выше — отбрасываем
 
 # Настройки нейросетевого фильтра (опционально). Если модели нет — автодеактивация.
 classifier:
@@ -38,50 +60,53 @@ classifier:
   parallel: true                  # [зарезервировано] запуск в отдельном процессе (не используется)
   enable_ssim: false              # [зарезервировано] SSIM‑постфильтр (не используется)
   auto_download: false            # Не скачиваем модель автоматически (отключено)
-  download_url: ""               # Прямая ссылка на .onnx (задайте, если включили auto_download)
+  download_url: ""                # Прямая ссылка на .onnx (задайте, если включили auto_download)
 
 # Дедупликация (по pHash)
 deduplication:
-  enable: false                    # Включить проверку дубликатов (визуально похожих)
-  hamming_threshold: 5            # Порог расстояния Хэмминга: <5 — считаем дубликатом
+  enable: true                     # Включить проверку дубликатов (визуально похожих)
+  hamming_threshold: 5             # Порог расстояния Хэмминга: <5 — считаем дубликатом
 
 # Загрузка и парсинг источников
 download:
-  threads: 8                      # Одновременные запросы (можно 6–8 при хорошем канале)
-  deep_parsing: true              # Глубокий парсинг ссылок <a> в пределах домена (BFS)
-  deep_max_depth: 5               # Максимальная глубина обхода при deep_parsing (BFS по домену)
-  per_site_concurrency: 3         # Параллельные запросы на один домен
-  enable_auto_discovery: false    # [зарезервировано] автообнаружение (sitemap/RSS) — не используется
-  request_delay: 0.4              # Базовая задержка между запросами (сек) + джиттер
-  max_requests_per_site: 500      # Лимит запросов на один домен
-  circuit_breaker_enabled: true   # Включить circuit breaker (пауза при 429/ошибках)
-  url_collect_limit: 0            # 0 — без лимита; иначе ограничить число собранных URL на этапе парсинга
-  user_agents:                    # Ротация User‑Agent для «незаметности»
+  threads: 8                             # Одновременные запросы (можно 6–8 при хорошем канале)
+  deep_parsing: true                     # Глубокий парсинг ссылок <a> в пределах домена (BFS)
+  deep_max_depth: 8                      # Максимальная глубина обхода при deep_parsing (BFS по домену)
+  per_site_concurrency: 3                # Параллельные запросы на один домен
+  enable_auto_discovery: true            # [зарезервировано] автообнаружение (sitemap/RSS) — не используется
+  request_delay: 0.4                     # Базовая задержка между запросами (сек) + джиттер
+  max_requests_per_site: 5000             # Лимит запросов на один домен
+  circuit_breaker_enabled: true          # Включить circuit breaker (пауза при 429/ошибках)
+  url_collect_limit: 0                   # 0 — без лимита; иначе ограничить число собранных URL на этапе парсинга
+  user_agents:                           # Ротация User‑Agent для «незаметности»
     - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15"
-  proxies: []                     # [зарезервировано] список прокси (не используется в текущей версии)
+  proxies: []                            # [зарезервировано] список прокси (не используется в текущей версии)
   sources:
-    - "https://unsplash.com"
-    - "https://www.pexels.com"
+    - "https://commons.wikimedia.org"
     - url: "https://pixabay.com"
       deep: true
-      max_depth: 3
+      max_depth: 5
+    - "https://unsplash.com"
+    - "https://www.pexels.com"
     - "https://stocksnap.io"
     - "https://burst.shopify.com"
     - "https://kaboompics.com"
     - "https://www.freeimages.com"
     - "https://www.flickr.com"
-    - "https://commons.wikimedia.org"
 
 # Настройки CLIP zero-shot (ONNX) для пост-фильтра
 clip:
-  repo_id: "openai/clip-vit-base-patch32"      # Репозиторий на HuggingFace
+  repo_id: "openai/clip-vit-base-patch32"     # Репозиторий на HuggingFace
   model_filename: "onnx/model.onnx"           # Большой объединённый ONNX (визуал+текст)
   tokenizer_filename: "tokenizer.json"        # Токенайзер CLIP
   cache_dir: "./models/clip"                  # Куда кэшировать веса
   revision: "12b36594d53414ecfba93c7200dbb7c7db3c900a"  # Коммит, где точно есть onnx/model.onnx
   prompts: ["a photo", "a painting", "an illustration", "a 3D render", "AI generated image", "a cartoon"]
-  positive_index: 0                            # Индекс позитивного класса в списке prompts
+  positive_index: 0                           # Индекс позитивного класса в списке prompts
+  # Inline-фильтр CLIP (до сохранения). Если включить — не-фото будут отбрасываться в рантайме
+  enable_filter: false
+  threshold: 0.60
 
 # Упаковка датасета
 packing:

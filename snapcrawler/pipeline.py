@@ -21,6 +21,7 @@ from .storage import save_image_atomic, insert_image_record, auto_pack_if_needed
 from .db import Database
 from .classifier import PhotoClassifier, ClassifierConfig
 from .bktree import BKTree
+from .clip_zeroshot import ClipZeroShot, ClipConfig
 
 
 @dataclass
@@ -101,6 +102,59 @@ def _watermark_pixel_heuristic(im: Image.Image, cfg: Dict[str, Any]) -> bool:
         return False
 
 
+def _screenshot_pixel_heuristic(im: Image.Image, cfg: Dict[str, Any]) -> bool:
+    """Простая эвристика для UI-скриншотов:
+    - Ровная верхняя полоса (титл-бар) с низкой дисперсией
+    - Повышенная плотность «текстовых» краёв в центральной области
+    Возвращает True, если похоже на скриншот."""
+    try:
+        arr = np.asarray(im.convert("RGB"))
+        h, w, _ = arr.shape
+        top_ratio = float(cfg.get("top_band_ratio", 0.06))
+        top_h = max(1, int(h * top_ratio))
+        top = arr[:top_h, :, :]
+        # Дисперсия по яркости
+        gray_top = np.dot(top[..., :3], [0.299, 0.587, 0.114]).astype(np.float32)
+        var_top = float(np.var(gray_top))
+        var_thr = float(cfg.get("top_band_var_max", 12.0))
+
+        # Центральная область (исключим края 10%)
+        y0, y1 = int(h * 0.15), int(h * 0.85)
+        x0, x1 = int(w * 0.10), int(w * 0.90)
+        center = gray_top  # reuse variable for typing; will overwrite
+        center = np.dot(arr[y0:y1, x0:x1, :3], [0.299, 0.587, 0.114]).astype(np.int16)
+        gx = np.abs(np.diff(center, axis=1))
+        gy = np.abs(np.diff(center, axis=0))
+        edge_thr = int(cfg.get("edge_threshold", 28))
+        edges = (gx > edge_thr).sum() + (gy > edge_thr).sum()
+        total = gx.size + gy.size
+        dens = edges / max(1, total)
+        dens_thr = float(cfg.get("edge_density_center", 0.18))
+
+        if var_top <= var_thr and dens >= dens_thr:
+            return True
+        return False
+    except Exception:
+        return False
+
+
+def _logo_alpha_heuristic(im: Image.Image, cfg: Dict[str, Any]) -> bool:
+    """Эвристика для логотипов: высокий процент прозрачных пикселей.
+    Возвращает True, если вероятно логотип (прозрачный фон/иконки)."""
+    try:
+        if im.mode not in ("RGBA", "LA"):
+            return False
+        alpha = im.split()[-1]
+        a = np.asarray(alpha, dtype=np.uint8)
+        thr = int(cfg.get("alpha_threshold", 24))
+        frac = float(cfg.get("transparent_fraction", 0.30))
+        transparent = (a <= thr).sum()
+        total = a.size
+        return (transparent / max(1, total)) >= frac
+    except Exception:
+        return False
+
+
 def preprocess_image(data: bytes, min_side: int, accept_bw: bool, orientation: str,
                      wm_cfg: Optional[Dict[str, Any]] = None) -> Optional[Tuple[Image.Image, int, int]]:
     try:
@@ -143,7 +197,8 @@ def hamming(a: str, b: str) -> int:
 
 async def worker(url: str, cfg: Dict[str, Any], db: Database, session: aiohttp.ClientSession,
                  cb: CircuitBreaker, storage_root: Path, known_hashes: List[str],
-                 log_rate: Dict[str, int], clf: Optional[PhotoClassifier]) -> Optional[Path]:
+                 log_rate: Dict[str, int], clf: Optional[PhotoClassifier],
+                 clip_inline: Optional[ClipZeroShot]) -> Optional[Path]:
     log = get_logger()
     if not cb.allow(url):
         return None
@@ -182,6 +237,24 @@ async def worker(url: str, cfg: Dict[str, Any], db: Database, session: aiohttp.C
     if clf is not None and clf.enabled:
         score = clf.is_photo(im)
         if score is not None and score < float(cfg["classifier"]["threshold"]):
+            return None
+
+    # Optional pixel screenshot heuristic
+    ss_cfg = cfg["image"].get("screenshot_pixel_filter") or {}
+    if bool(ss_cfg.get("enable", False)):
+        if _screenshot_pixel_heuristic(im, ss_cfg):
+            return None
+
+    # Optional logo alpha heuristic
+    la_cfg = cfg["image"].get("logo_alpha_filter") or {}
+    if bool(la_cfg.get("enable", False)):
+        if _logo_alpha_heuristic(im, la_cfg):
+            return None
+
+    # Optional inline CLIP zero-shot filter
+    if clip_inline is not None and clip_inline.enabled and bool(cfg["clip"].get("enable_filter", False)):
+        clip_score = float(clip_inline.photo_score(im))
+        if clip_score < float(cfg["clip"].get("threshold", 0.60)):
             return None
 
     # Compute pHash and deduplicate
@@ -314,6 +387,10 @@ async def run(cfg: Dict[str, Any], db: Database) -> None:
         skip_watermarked_urls=bool(cfg["image"].get("skip_watermarked_urls", True)),
         watermark_keywords=[w for w in cfg["image"].get("watermark_keywords", [])],
         url_collect_limit=int(cfg["download"].get("url_collect_limit", 0)),
+        skip_screenshot_urls=bool(cfg["image"].get("skip_screenshot_urls", False)),
+        screenshot_keywords=[w for w in cfg["image"].get("screenshot_keywords", [])],
+        skip_logo_urls=bool(cfg["image"].get("skip_logo_urls", False)),
+        logo_keywords=[w for w in cfg["image"].get("logo_keywords", [])],
     )
 
     # Prepare HTTP session
@@ -342,6 +419,23 @@ async def run(cfg: Dict[str, Any], db: Database) -> None:
     except Exception:
         clf = None
 
+    # Initialize CLIP inline filter (optional)
+    clip_inline: Optional[ClipZeroShot] = None
+    try:
+        if bool(cfg["clip"].get("enable_filter", False)):
+            clip_cfg = ClipConfig(
+                repo_id=str(cfg["clip"]["repo_id"]),
+                model_filename=str(cfg["clip"]["model_filename"]),
+                tokenizer_filename=str(cfg["clip"]["tokenizer_filename"]),
+                cache_dir=str(cfg["clip"]["cache_dir"]),
+                revision=str(cfg["clip"].get("revision", "")) or None,
+                prompts=[p for p in cfg["clip"].get("prompts", [])],
+                positive_index=int(cfg["clip"].get("positive_index", 0)),
+            )
+            clip_inline = ClipZeroShot(clip_cfg)
+    except Exception:
+        clip_inline = None
+
     log_rate: Dict[str, int] = {}
 
     async with aiohttp.ClientSession(connector=conn) as session:
@@ -362,7 +456,7 @@ async def run(cfg: Dict[str, Any], db: Database) -> None:
                 if d not in domain_sems:
                     domain_sems[d] = asyncio.Semaphore(per_site)
                 async with domain_sems[d]:
-                    return await worker(u, cfg, db, session, cb, storage_root, known_hashes, log_rate, clf)
+                    return await worker(u, cfg, db, session, cb, storage_root, known_hashes, log_rate, clf, clip_inline)
 
         async def producer():
             try:
