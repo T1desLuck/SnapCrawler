@@ -67,11 +67,19 @@ async def fetch_bytes(session: aiohttp.ClientSession, url: str, headers: Dict[st
         async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
             if resp.status != 200:
                 return None, resp.status
-            ctype = resp.headers.get("Content-Type", "").lower()
-            if "image" not in ctype:
-                return None, resp.status
+            ctype = (resp.headers.get("Content-Type") or "").lower()
             data = await resp.read()
-            return data, 200
+            # Принимаем, если явно image/*
+            if "image" in ctype:
+                return data, 200
+            # Разрешаем generic типы — многие CDN отдают octet-stream/без заголовка
+            if (not ctype) or ("octet-stream" in ctype):
+                return data, 200
+            # Fallback: если URL выглядит как картинка по расширению — примем и попробуем открыть далее
+            url_low = url.lower().split("?", 1)[0]
+            if any(url_low.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff")):
+                return data, 200
+            return None, resp.status
     except aiohttp.ClientResponseError as e:
         return None, e.status
     except Exception:
@@ -204,18 +212,21 @@ async def worker(url: str, cfg: Dict[str, Any], db: Database, session: aiohttp.C
         return None
 
     headers = {"User-Agent": pick_user_agent(cfg["download"]["user_agents"])}
-    retries = 3
+    # Кол-во повторов и экспоненциальный бэкофф берём из конфига
+    retries = int(cfg["download"].get("image_retries", 3))
+    backoff_base = float(cfg["download"].get("backoff_base", 2.0))
     last_status: Optional[int] = None
     for attempt in range(retries):
         await asyncio.sleep(jitter_delay(cfg["download"]["request_delay"]))
-        data, status = await fetch_bytes(session, url, headers)
+        # Таймаут загрузки изображения управляется download.image_timeout
+        data, status = await fetch_bytes(session, url, headers, timeout=int(cfg["download"].get("image_timeout", 25)))
         last_status = status
         if data is not None:
             cb.report(url, ok=True)
             break
         # backoff
         cb.report(url, ok=False, code=status)
-        await asyncio.sleep(2 ** attempt)
+        await asyncio.sleep(backoff_base ** attempt)
     else:
         if last_status == 429:
             log.debug("Получен 429, цепь для домена %s временно разомкнута", domain_of(url))
@@ -392,6 +403,9 @@ async def run(cfg: Dict[str, Any], db: Database) -> None:
         skip_logo_urls=bool(cfg["image"].get("skip_logo_urls", False)),
         logo_keywords=[w for w in cfg["image"].get("logo_keywords", [])],
         allow_subdomains=bool(cfg["download"].get("allow_subdomains", True)),
+        # Новые параметры коллектора страниц: лимит соединений и таймаут
+        collector_conn_limit=int(cfg["download"].get("collector_conn_limit", 8)),
+        page_timeout=int(cfg["download"].get("page_timeout", 20)),
     )
 
     # Prepare HTTP session

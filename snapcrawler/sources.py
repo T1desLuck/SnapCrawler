@@ -21,7 +21,9 @@ class SourceManager:
                  url_collect_limit: int = 0,
                  skip_screenshot_urls: bool = False, screenshot_keywords: List[str] | None = None,
                  skip_logo_urls: bool = False, logo_keywords: List[str] | None = None,
-                 allow_subdomains: bool = True) -> None:
+                 allow_subdomains: bool = True,
+                 collector_conn_limit: int = 8,
+                 page_timeout: int = 20) -> None:
         # Инициализация параметров до нормализации (используются ниже)
         self.user_agents = user_agents
         self.request_delay = request_delay
@@ -37,6 +39,10 @@ class SourceManager:
         self.logo_keywords = [w.lower() for w in (logo_keywords or [])]
         self.url_collect_limit = max(0, int(url_collect_limit))
         self.allow_subdomains = bool(allow_subdomains)
+        # Лимит одновременных соединений коллектора страниц (BFS) — берём из конфига
+        self.collector_conn_limit = int(collector_conn_limit)
+        # Таймаут загрузки HTML-страницы (секунды) — берём из конфига
+        self.page_timeout = int(page_timeout)
         self._seen_pages: Set[str] = set()
         self._per_site_count: dict[str, int] = {}
         self.log = get_logger()
@@ -97,8 +103,10 @@ class SourceManager:
 
     async def _fetch(self, session: aiohttp.ClientSession, url: str) -> str:
         headers = {"User-Agent": pick_user_agent(self.user_agents)}
+        # Задержка между запросами для стелса (с джиттером)
         await asyncio.sleep(jitter_delay(self.request_delay))
-        async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=20)) as resp:
+        # Таймаут страницы управляется self.page_timeout из конфига
+        async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=self.page_timeout)) as resp:
             if resp.status != 200:
                 raise RuntimeError(f"HTTP {resp.status} при загрузке страницы")
             return await resp.text(errors="ignore")
@@ -125,7 +133,15 @@ class SourceManager:
         if not self.extensions:
             return True
         low = url.lower()
-        return any(low.endswith(ext) for ext in self.extensions)
+        base = low.split("?", 1)[0]
+        # Явное совпадение по расширению
+        if any(base.endswith(ext) for ext in self.extensions):
+            return True
+        # Разрешаем URL без расширения в последнем сегменте пути — CDN часто скрывают расширение
+        last = base.rsplit("/", 1)[-1]
+        if "." not in last:
+            return True
+        return False
 
     def _best_img_src(self, base_url: str, tag) -> List[str]:
         # Возвращает кандидатов URL для картинки, отдавая приоритет наибольшему из srcset
@@ -232,7 +248,8 @@ class SourceManager:
 
     async def collect_image_urls(self) -> List[str]:
         urls: List[str] = []
-        conn = aiohttp.TCPConnector(limit=8)
+        # Лимит соединений коллектора управляется download.collector_conn_limit
+        conn = aiohttp.TCPConnector(limit=self.collector_conn_limit)
         async with aiohttp.ClientSession(connector=conn) as session:
             # BFS очередь по страницам: (url, depth, max_depth)
             q: deque[Tuple[str, int, int]] = deque()
@@ -298,7 +315,7 @@ class SourceManager:
         async with aiohttp.ClientSession(connector=conn) as session:
             q: deque[Tuple[str, int, int]] = deque()
             for url, md in self.sources:
-                q.append((url, 0, md))
+                q.append((self._normalize_page_url(url), 0, md))
 
             self.log.info(
                 "Старт сбора URL (stream): стартовых страниц=%d, глубина по умолчанию=%d, лимит URL=%s",
@@ -350,6 +367,9 @@ class SourceManager:
                 if depth < max_depth:
                     for npg in next_pages:
                         if npg not in self._seen_pages:
-                            q.append((npg, depth + 1, max_depth))
+                            if self._is_pagination_link(None, npg):
+                                q.appendleft((npg, depth + 1, max_depth))
+                            else:
+                                q.append((npg, depth + 1, max_depth))
 
             self.log.info("URL-сбор завершён (stream): всего выдано ссылок=%d", yielded)
