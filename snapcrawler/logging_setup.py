@@ -6,6 +6,7 @@
 from __future__ import annotations
 import logging
 from logging.handlers import RotatingFileHandler
+import sys
 from pathlib import Path
 
 _LOGGER_NAME = "snapcrawler"
@@ -24,6 +25,15 @@ def setup_logging(log_dir: Path | None = None) -> None:
         fmt="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+
+    # Попробуем принудительно включить UTF-8 в консоли (актуально для Windows)
+    try:
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+        if hasattr(sys.stderr, "reconfigure"):
+            sys.stderr.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+    except Exception:
+        pass
 
     # Консольный обработчик логов
     ch = logging.StreamHandler()

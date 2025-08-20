@@ -14,9 +14,9 @@ image:
   accept_bw: true                  # Временно принимаем ч/б, чтобы не терять
   extensions: [".jpg", ".jpeg", ".png", ".webp"]  # Добавим svg (часто логотипы/иллюстрации)
   orientation: "all"               # Ориентация: all|square|portrait|landscape
-  save_format: "original"          # "jpeg" | "original" — сохранить как JPEG либо в исходном формате
+  save_format: "jpeg"          # "jpeg" | "original" — сохранить как JPEG либо в исходном формате
   jpeg_quality: 100                # Качество JPEG при save_format: jpeg
-  skip_watermarked_urls: true      # На старте отключим, чтобы не потерять источники; потом можно включить
+  skip_watermarked_urls: false      # На старте отключим, чтобы не потерять источники; потом можно включить
   watermark_keywords:              # Слова в URL, по которым считаем, что там водяной знак/превью
     - watermark
     - wm
@@ -39,7 +39,7 @@ image:
     edge_density_center: 0.18    # Порог плотности «текстовых» краёв в центральной области
 
   # URL-фильтр логотипов/иконок
-  skip_logo_urls: true
+  skip_logo_urls: false
   logo_keywords:
     - logo
     - favicon
@@ -47,13 +47,13 @@ image:
     - header-logo
   # Эвристика для логотипов с альфа-каналом (полупрозрачный/прозрачный фон)
   logo_alpha_filter:
-    enable: true                  # Диагностика: выключаем
+    enable: false                  # Диагностика: выключаем
     alpha_threshold: 24         # Порог прозрачности (0..255): <= считаем прозрачным
     transparent_fraction: 0.30  # Если доля прозрачных пикселей выше — отбрасываем
 
 # Настройки нейросетевого фильтра (опционально). Если модели нет — автодеактивация.
 classifier:
-  enable: false                   # Диагностика: выключено
+  enable: true                   # Диагностика: выключено
   model_path: "./models/photo_filter.onnx"  # Путь к ONNX‑модели
   batch_size: 16                  # (Сейчас без эффекта: батч‑инференс не реализован)
   threshold: 0.5                  # Порог уверенности (0..1). Ниже — отбрасываем
@@ -85,7 +85,7 @@ download:
   collector_conn_limit: 12               # Ускорим обход страниц
   circuit_breaker_enabled: true          # Включить circuit breaker (пауза при 429/ошибках)
   url_collect_limit: 0                   # 0 — без лимита; иначе ограничить число собранных URL на этапе парсинга
-  run_seconds: 0                         # Диагностика: дадим больше времени для умного поиска
+  run_seconds: 30                        # Короткий тест: авто-стоп через 30 секунд
   user_agents:                           # Ротация User‑Agent для «незаметности» (desktop+mobile)
     - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     - "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Safari/605.1.15"

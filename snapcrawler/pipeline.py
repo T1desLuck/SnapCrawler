@@ -250,9 +250,9 @@ async def worker(url: str, referer: Optional[str], cfg: Dict[str, Any], db: Data
         # backoff
         cb.report(url, ok=False, code=status)
         try:
-            # Диагностика: первые несколько неудач логируем с реферером
+            # Диагностика: первые несколько неудач логируем (без URL)
             if attempt == 0:
-                log.debug("Загрузка не удалась: %s status=%s referer=%s", url, status, headers.get("Referer"))
+                log.debug("Загрузка не удалась: status=%s referer=%s", status, headers.get("Referer"))
         except Exception:
             pass
         await asyncio.sleep(backoff_base ** attempt)
@@ -263,8 +263,8 @@ async def worker(url: str, referer: Optional[str], cfg: Dict[str, Any], db: Data
         key = f"http_{last_status if last_status is not None else 'err'}"
         log_rate[key] = log_rate.get(key, 0) + 1
         try:
-            # Финальная диагностика неудачи скачивания
-            log.info("Провал скачивания: %s status=%s referer=%s", url, last_status, headers.get("Referer"))
+            # Финальная диагностика неудачи скачивания (без URL, менее шумно)
+            log.debug("Провал скачивания: status=%s referer=%s", last_status, headers.get("Referer"))
         except Exception:
             pass
         return None
@@ -570,10 +570,23 @@ async def run(cfg: Dict[str, Any], db: Database) -> None:
                 now = time.time()
                 if now - last_beat >= 10:
                     in_queue = q.qsize()
-                    # Короткая сводка по причинам отсевов (топ-4 счётчиков)
+                    # Короткая сводка по причинам отсевов (топ-4 счётчиков) с русскими метками
+                    def _ru_reason(k: str) -> str:
+                        mapping = {
+                            "preprocess_drop": "Предобработка",
+                            "http_415": "HTTP 415",
+                            "http_err": "HTTP ошибка",
+                            "dup": "Дубликаты",
+                            "near_dup": "Похожие",
+                            "classifier_reject": "Классификатор",
+                            "screenshot_pixel": "Скриншот (пикс.)",
+                            "logo_alpha": "Логотип (альфа)",
+                            "clip_reject": "CLIP",
+                        }
+                        return mapping.get(k, k)
                     counters = {k: v for k, v in log_rate.items() if not k.startswith("ok")}
                     top = sorted(counters.items(), key=lambda kv: kv[1], reverse=True)[:4]
-                    drops = ", ".join(f"{k}={v}" for k, v in top) if top else ""
+                    drops = ", ".join(f"{_ru_reason(k)}={v}" for k, v in top) if top else ""
                     log.info(
                         "Прогресс: сохранено=%d, цель=%s, в очереди=%d%s",
                         saved_count_box["n"], target or "∞", in_queue,

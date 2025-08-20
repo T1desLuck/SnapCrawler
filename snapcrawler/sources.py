@@ -96,8 +96,18 @@ class SourceManager:
 
     def _is_pagination_link(self, a_tag, full_url: str) -> bool:
         try:
-            rel = a_tag.get("rel") or []
-            if isinstance(rel, (list, tuple)) and any(r.lower() == "next" for r in rel):
+            rel_raw = a_tag.get("rel") if a_tag is not None else []
+            # Безопасная нормализация rel: поддерживаем AttributeValueList/iterables
+            rel_list: List[str] = []
+            if rel_raw:
+                if isinstance(rel_raw, str):
+                    rel_list = [rel_raw.lower()]
+                else:
+                    try:
+                        rel_list = [str(r).lower() for r in list(rel_raw)]
+                    except Exception:
+                        rel_list = [str(rel_raw).lower()]
+            if any(r == "next" for r in rel_list):
                 return True
         except Exception:
             pass
@@ -278,14 +288,22 @@ class SourceManager:
         if self._is_watermarked_url(full) or self._is_screenshot_url(full) or self._is_logo_url(full):
             return None
         low = full.lower()
-        # 1) Явные расширения картинки
-        if self._passes_ext_filter(low):
+        # Разрешаем только http/https
+        try:
+            scheme = urlsplit(full).scheme.lower()
+        except Exception:
+            scheme = ""
+        if scheme not in ("http", "https"):
+            return None
+        tgt_dom = domain_of(full)
+        base_noq = low.split("?", 1)[0]
+        # 0) Явные Wikimedia прямые пути
+        if ("commons.wikimedia.org" in tgt_dom and "/wiki/special:filepath/" in low) or ("upload.wikimedia.org" in tgt_dom):
             return full
-        # 2) Сильные ключевые слова намекающие на оригинал/загрузку
-        strong_kw = ("download", "original", "orig", "full", "hires", "max", "raw")
-        if any(k in low for k in strong_kw):
-            # даже без расширения разрешим; pipeline проверит Content-Type
+        # 1) Явные расширения картинки (строго: только whitelist)
+        if any(base_noq.endswith(ext) for ext in self.extensions):
             return full
+        # Иначе — не считаем это прямой картинкой
         return None
 
     async def _parse_page(self, session: aiohttp.ClientSession, url: str) -> Tuple[List[Tuple[str, str]], List[str]]:
@@ -313,209 +331,221 @@ class SourceManager:
         except Exception:
             pass
 
-        # 1) <img> и <picture><source>
-        for tag in soup.find_all("img"):
-            for candidate in self._best_img_src(url, tag):
-                imgs.append((candidate, url))
-                if len(samples) < 5:
-                    samples.append(candidate)
-        for pict in soup.find_all("picture"):
-            for src in pict.find_all("source"):
-                for candidate in self._best_img_src(url, src):
+        try:
+            # 1) <img> и <picture><source>
+            for tag in soup.find_all("img"):
+                for candidate in self._best_img_src(url, tag):
                     imgs.append((candidate, url))
                     if len(samples) < 5:
                         samples.append(candidate)
-
-        # 2) <noscript> fallback
-        for ns in soup.find_all("noscript"):
-            try:
-                ns_soup = BeautifulSoup(ns.get_text() or "", "lxml")
-                for tag in ns_soup.find_all("img"):
-                    for candidate in self._best_img_src(url, tag):
+            for pict in soup.find_all("picture"):
+                for src in pict.find_all("source"):
+                    for candidate in self._best_img_src(url, src):
                         imgs.append((candidate, url))
                         if len(samples) < 5:
                             samples.append(candidate)
-            except Exception:
-                pass
 
-        # 3) Мета OG/Twitter — сильные сигналы, не фильтруем по расширению
-        for meta in soup.find_all("meta"):
-            prop = (meta.get("property") or meta.get("name") or "").lower()
-            if prop in ("og:image", "og:image:url", "og:image:secure_url", "twitter:image", "twitter:image:src"):
-                content = meta.get("content")
-                if content:
-                    cand = urljoin(url, content)
-                    if not (self._is_watermarked_url(cand) or self._is_logo_url(cand) or self._is_screenshot_url(cand)):
-                        imgs.append((cand, url))
-                        if len(samples) < 5:
-                            samples.append(cand)
+            # 2) <noscript> fallback
+            for ns in soup.find_all("noscript"):
+                try:
+                    ns_soup = BeautifulSoup(ns.get_text() or "", "lxml")
+                    for tag in ns_soup.find_all("img"):
+                        for candidate in self._best_img_src(url, tag):
+                            imgs.append((candidate, url))
+                            if len(samples) < 5:
+                                samples.append(candidate)
+                except Exception:
+                    pass
 
-        # 4) data-* атрибуты и JSON внутри них
-        data_attr_candidates = (
-            "data-src", "data-srcset", "data-original", "data-original-src", "data-lazy", "data-lazy-src",
-            "data-image", "data-img", "data-full", "data-large", "data-url", "data-file", "data-thumb",
-        )
-        for el in soup.find_all(True):
-            for attr, val in (el.attrs or {}).items():
-                if not isinstance(val, str):
-                    continue
-                low_attr = str(attr).lower()
-                if low_attr in data_attr_candidates or (low_attr.startswith("data-") and any(k in low_attr for k in ("img", "image", "photo", "thumb"))):
-                    v = val.strip()
-                    if not v:
-                        continue
-                    cand = urljoin(url, v)
-                    strong = any(k in low_attr for k in ("img", "image", "photo", "thumb"))
-                    if strong:
+            # 3) Мета OG/Twitter — сильные сигналы, не фильтруем по расширению
+            for meta in soup.find_all("meta"):
+                prop = (meta.get("property") or meta.get("name") or "").lower()
+                if prop in ("og:image", "og:image:url", "og:image:secure_url", "twitter:image", "twitter:image:src"):
+                    content = meta.get("content")
+                    if content:
+                        cand = urljoin(url, content)
                         if not (self._is_watermarked_url(cand) or self._is_logo_url(cand) or self._is_screenshot_url(cand)):
                             imgs.append((cand, url))
                             if len(samples) < 5:
                                 samples.append(cand)
-                    else:
-                        if self._passes_ext_filter(cand) and not (self._is_watermarked_url(cand) or self._is_logo_url(cand) or self._is_screenshot_url(cand)):
+
+            # 4) data-* атрибуты и JSON внутри них
+            data_attr_candidates = (
+                "data-src", "data-srcset", "data-original", "data-original-src", "data-lazy", "data-lazy-src",
+                "data-image", "data-img", "data-full", "data-large", "data-url", "data-file", "data-thumb",
+            )
+            for el in soup.find_all(True):
+                for attr, val in (el.attrs or {}).items():
+                    if not isinstance(val, str):
+                        continue
+                    low_attr = str(attr).lower()
+                    if low_attr in data_attr_candidates or (low_attr.startswith("data-") and any(k in low_attr for k in ("img", "image", "photo", "thumb"))):
+                        v = val.strip()
+                        if not v:
+                            continue
+                        cand = urljoin(url, v)
+                        strong = any(k in low_attr for k in ("img", "image", "photo", "thumb"))
+                        if strong:
+                            if not (self._is_watermarked_url(cand) or self._is_logo_url(cand) or self._is_screenshot_url(cand)):
+                                imgs.append((cand, url))
+                                if len(samples) < 5:
+                                    samples.append(cand)
+                        else:
+                            if self._passes_ext_filter(cand) and not (self._is_watermarked_url(cand) or self._is_logo_url(cand) or self._is_screenshot_url(cand)):
+                                imgs.append((cand, url))
+                                if len(samples) < 5:
+                                    samples.append(cand)
+                        # JSON в значении data-* (вытаскиваем image-like ключи)
+                        try:
+                            if (v.startswith("{") and v.endswith("}")) or (v.startswith("[") and v.endswith("]")):
+                                j = json.loads(v)
+                                def _from_json(obj):
+                                    if isinstance(obj, dict):
+                                        for k in ("image", "imageUrl", "image_url", "thumbnail", "thumbnailUrl", "contentUrl", "src", "url"):
+                                            if k in obj and isinstance(obj[k], str):
+                                                cc = urljoin(url, obj[k])
+                                                if not (self._is_watermarked_url(cc) or self._is_logo_url(cc) or self._is_screenshot_url(cc)):
+                                                    imgs.append((cc, url))
+                                                    if len(samples) < 5:
+                                                        samples.append(cc)
+                                        for v2 in obj.values():
+                                            _from_json(v2)
+                                    elif isinstance(obj, list):
+                                        for it in obj:
+                                            _from_json(it)
+                                _from_json(j)
+                        except Exception:
+                            pass
+
+            # 5) <video poster>
+            for v in soup.find_all("video"):
+                try:
+                    poster = v.get("poster")
+                    if poster:
+                        cand = urljoin(url, poster)
+                        if not (self._is_watermarked_url(cand) or self._is_logo_url(cand) or self._is_screenshot_url(cand)):
+                            imgs.append((cand, url))
+                except Exception:
+                    pass
+
+            # 6) JSON-LD
+            for sc in soup.find_all("script", {"type": "application/ld+json"}):
+                try:
+                    data = json.loads(sc.string or sc.get_text() or "{}")
+                except Exception:
+                    continue
+                def _add_img(val):
+                    if isinstance(val, str):
+                        cand = urljoin(url, val)
+                        if not (self._is_watermarked_url(cand) or self._is_logo_url(cand) or self._is_screenshot_url(cand)):
+                            imgs.append((cand, url))
+                    elif isinstance(val, list):
+                        for v in val:
+                            _add_img(v)
+                    elif isinstance(val, dict):
+                        _add_img(val.get("url") or val.get("contentUrl") or val.get("thumbnailUrl"))
+                if isinstance(data, list):
+                    for item in data:
+                        if isinstance(item, dict):
+                            for key in ("image", "imageUrl", "image_url", "thumbnailUrl", "contentUrl"):
+                                if key in item:
+                                    _add_img(item[key])
+                elif isinstance(data, dict):
+                    for key in ("image", "imageUrl", "image_url", "thumbnailUrl", "contentUrl"):
+                        if key in data:
+                            _add_img(data[key])
+
+            # 7) link rel=image_src, preload as=image
+            for link in soup.find_all("link"):
+                # Безопасная нормализация rel
+                rel_raw = (link.get("rel") or [])
+                if isinstance(rel_raw, str):
+                    rel_list = [rel_raw.lower()]
+                else:
+                    try:
+                        rel_list = [str(r).lower() for r in list(rel_raw)]
+                    except Exception:
+                        rel_list = [str(rel_raw).lower()] if rel_raw else []
+                if "image_src" in rel_list or (isinstance(link.get("rel"), str) and str(link.get("rel")).lower() == "image_src"):
+                    href = link.get("href")
+                    if href:
+                        cand = urljoin(url, href)
+                        if not (self._is_watermarked_url(cand) or self._is_logo_url(cand) or self._is_screenshot_url(cand)):
+                            imgs.append((cand, url))
+                asv = (link.get("as") or link.get("as_"))
+                if ("preload" in rel_list) and (str(asv).lower() == "image"):
+                    href = link.get("href")
+                    if href:
+                        cand = urljoin(url, href)
+                        if not (self._is_watermarked_url(cand) or self._is_logo_url(cand) or self._is_screenshot_url(cand)):
+                            imgs.append((cand, url))
+
+            # 8) Ссылки <a>: добавляем прямые картинки и продолжаем BFS по страницам
+            next_pages: List[str] = []
+            if self.deep_parsing:
+                base_domain = domain_of(url)
+                for a in soup.find_all("a"):
+                    href = a.get("href")
+                    if not href:
+                        continue
+                    full = self._normalize_page_url(urljoin(url, href))
+                    if full in self._seen_pages:
+                        continue
+                    target_domain = domain_of(full)
+                    same_site = (
+                        target_domain == base_domain or
+                        (self.allow_subdomains and (
+                            target_domain.endswith("." + base_domain) or base_domain.endswith("." + target_domain)
+                        ))
+                    )
+                    if not same_site:
+                        cand = self._candidate_image_from_link(url, href)
+                        if cand:
                             imgs.append((cand, url))
                             if len(samples) < 5:
                                 samples.append(cand)
-                    # JSON в значении data-* (вытаскиваем image-like ключи)
+                        continue
+                    # Wikimedia Commons: прямое преобразование ссылок вида /wiki/File:... в Special:FilePath
                     try:
-                        if (v.startswith("{") and v.endswith("}")) or (v.startswith("[") and v.endswith("]")):
-                            j = json.loads(v)
-                            def _from_json(obj):
-                                if isinstance(obj, dict):
-                                    for k in ("image", "imageUrl", "image_url", "thumbnail", "thumbnailUrl", "contentUrl", "src", "url"):
-                                        if k in obj and isinstance(obj[k], str):
-                                            cc = urljoin(url, obj[k])
-                                            if not (self._is_watermarked_url(cc) or self._is_logo_url(cc) or self._is_screenshot_url(cc)):
-                                                imgs.append((cc, url))
-                                                if len(samples) < 5:
-                                                    samples.append(cc)
-                                    for v2 in obj.values():
-                                        _from_json(v2)
-                                elif isinstance(obj, list):
-                                    for it in obj:
-                                        _from_json(it)
-                            _from_json(j)
+                        if "commons.wikimedia.org" in target_domain and "/wiki/File:" in full:
+                            from urllib.parse import quote
+                            file_title = full.split("/wiki/File:", 1)[1]
+                            # Не включаем параметры запроса/фрагменты
+                            file_title = file_title.split("?", 1)[0].split("#", 1)[0]
+                            special = f"https://commons.wikimedia.org/wiki/Special:FilePath/{quote(file_title, safe='/:()[]%') }"
+                            imgs.append((special, url))
+                            if len(samples) < 5:
+                                samples.append(special)
                     except Exception:
                         pass
-
-        # 5) <video poster>
-        for v in soup.find_all("video"):
-            try:
-                poster = v.get("poster")
-                if poster:
-                    cand = urljoin(url, poster)
-                    if not (self._is_watermarked_url(cand) or self._is_logo_url(cand) or self._is_screenshot_url(cand)):
-                        imgs.append((cand, url))
-            except Exception:
-                pass
-
-        # 6) JSON-LD
-        for sc in soup.find_all("script", {"type": "application/ld+json"}):
-            try:
-                data = json.loads(sc.string or sc.get_text() or "{}")
-            except Exception:
-                continue
-            def _add_img(val):
-                if isinstance(val, str):
-                    cand = urljoin(url, val)
-                    if not (self._is_watermarked_url(cand) or self._is_logo_url(cand) or self._is_screenshot_url(cand)):
-                        imgs.append((cand, url))
-                elif isinstance(val, list):
-                    for v in val:
-                        _add_img(v)
-                elif isinstance(val, dict):
-                    _add_img(val.get("url") or val.get("contentUrl") or val.get("thumbnailUrl"))
-            if isinstance(data, list):
-                for item in data:
-                    if isinstance(item, dict):
-                        for key in ("image", "imageUrl", "image_url", "thumbnailUrl", "contentUrl"):
-                            if key in item:
-                                _add_img(item[key])
-            elif isinstance(data, dict):
-                for key in ("image", "imageUrl", "image_url", "thumbnailUrl", "contentUrl"):
-                    if key in data:
-                        _add_img(data[key])
-
-        # 7) link rel=image_src, preload as=image
-        for link in soup.find_all("link"):
-            rel = (link.get("rel") or [])
-            rel = [str(r).lower() for r in rel] if isinstance(rel, list) else [str(rel).lower()]
-            if "image_src" in rel or link.get("rel", "").lower() == "image_src":
-                href = link.get("href")
-                if href:
-                    cand = urljoin(url, href)
-                    if not (self._is_watermarked_url(cand) or self._is_logo_url(cand) or self._is_screenshot_url(cand)):
-                        imgs.append((cand, url))
-            asv = (link.get("as") or link.get("as_"))
-            if ("preload" in rel) and (str(asv).lower() == "image"):
-                href = link.get("href")
-                if href:
-                    cand = urljoin(url, href)
-                    if not (self._is_watermarked_url(cand) or self._is_logo_url(cand) or self._is_screenshot_url(cand)):
-                        imgs.append((cand, url))
-
-        # 8) Ссылки <a>: добавляем прямые картинки и продолжаем BFS по страницам
-        next_pages: List[str] = []
-        if self.deep_parsing:
-            base_domain = domain_of(url)
-            for a in soup.find_all("a"):
-                href = a.get("href")
-                if not href:
-                    continue
-                full = self._normalize_page_url(urljoin(url, href))
-                if full in self._seen_pages:
-                    continue
-                target_domain = domain_of(full)
-                same_site = (
-                    target_domain == base_domain or
-                    (self.allow_subdomains and (
-                        target_domain.endswith("." + base_domain) or base_domain.endswith("." + target_domain)
-                    ))
-                )
-                if not same_site:
                     cand = self._candidate_image_from_link(url, href)
                     if cand:
                         imgs.append((cand, url))
                         if len(samples) < 5:
                             samples.append(cand)
-                    continue
-                # Wikimedia Commons: прямое преобразование ссылок вида /wiki/File:... в Special:FilePath
-                try:
-                    if "commons.wikimedia.org" in target_domain and "/wiki/File:" in full:
-                        from urllib.parse import quote
-                        file_title = full.split("/wiki/File:", 1)[1]
-                        # Не включаем параметры запроса/фрагменты
-                        file_title = file_title.split("?", 1)[0].split("#", 1)[0]
-                        special = f"https://commons.wikimedia.org/wiki/Special:FilePath/{quote(file_title, safe='/:()[]%') }"
-                        imgs.append((special, url))
-                        if len(samples) < 5:
-                            samples.append(special)
-                except Exception:
-                    pass
-                cand = self._candidate_image_from_link(url, href)
-                if cand:
-                    imgs.append((cand, url))
-                    if len(samples) < 5:
-                        samples.append(cand)
-                if self._is_pagination_link(a, full):
-                    next_pages.insert(0, full)
-                else:
-                    next_pages.append(full)
+                    if self._is_pagination_link(a, full):
+                        next_pages.insert(0, full)
+                    else:
+                        next_pages.append(full)
+        except Exception as e:
+            try:
+                self.log.info("PARSE ERROR on %s: %r", url, e)
+            except Exception:
+                pass
 
-        # Диагностика: краткая сводка по странице
+        # Краткая сводка по странице (без спама URL)
         try:
             if imgs:
-                self.log.debug("Страница %s: найдено изображений=%d, переходов=%d", url, len(imgs), len(next_pages))
+                self.log.info("Страница обработана: изображений=%d, переходов=%d", len(imgs), len(next_pages))
             else:
-                self.log.debug("Страница %s: изображений не найдено, переходов=%d", url, len(next_pages))
+                self.log.info("Страница обработана: изображений не найдено, переходов=%d", len(next_pages))
         except Exception:
             pass
-        # ASCII-диагностика для терминалов с проблемами кодировки
+        # Детали оставляем на уровне DEBUG (без длинных URL)
         try:
-            self.log.debug("PAGE IMG COUNT %s -> imgs=%d next_pages=%d", url, len(imgs), len(next_pages))
+            self.log.debug("Парсинг завершён: кандидатов=%d, след.страниц=%d", len(imgs), len(next_pages))
             if samples:
-                for s in samples:
-                    self.log.debug("SAMPLE IMG URL %s -> %s", url, s)
+                self.log.debug("Примеры URL (первые %d) собраны", len(samples))
         except Exception:
             pass
         return imgs, next_pages
@@ -668,6 +698,15 @@ class SourceManager:
                             pass
                     yield (u, ref)
                     yielded += 1
+
+                # Планируем следующие страницы для обхода (BFS) с приоритетом пагинации
+                if depth < max_depth:
+                    for npg in next_pages:
+                        if npg not in self._seen_pages:
+                            if self._is_pagination_link(None, npg):
+                                q.appendleft((npg, depth + 1, max_depth))
+                            else:
+                                q.append((npg, depth + 1, max_depth))
                     if self.url_collect_limit > 0 and yielded >= self.url_collect_limit:
                         self.log.info("Достигнут лимит сбора URL (stream): %d. Останавливаем парсинг.", self.url_collect_limit)
                         return
