@@ -217,3 +217,64 @@ class SourceManager:
         deduped = list(dict.fromkeys(urls))
         self.log.info("Собрано %d ссылок на изображения (после дедупликации).", len(deduped))
         return deduped
+
+    async def iter_image_urls(self):
+        """Потоковый сбор URL изображений.
+        Вместо возврата полного списка, отдаёт URL по мере нахождения (BFS),
+        применяя те же фильтры и ограничения. Позволяет запускать загрузку параллельно со сбором.
+        """
+        conn = aiohttp.TCPConnector(limit=8)
+        async with aiohttp.ClientSession(connector=conn) as session:
+            q: deque[Tuple[str, int, int]] = deque()
+            for url, md in self.sources:
+                q.append((url, 0, md))
+
+            self.log.info(
+                "Старт сбора URL (stream): стартовых страниц=%d, глубина по умолчанию=%d, лимит URL=%s",
+                len(self.sources), self.deep_max_depth, (self.url_collect_limit or "∞"),
+            )
+
+            processed_pages = 0
+            last_beat_pages = 0
+            yielded = 0
+            yielded_set: Set[str] = set()
+
+            while q:
+                page, depth, max_depth = q.popleft()
+                if page in self._seen_pages:
+                    continue
+                self._seen_pages.add(page)
+                if not self._allowed(page):
+                    continue
+                try:
+                    imgs, next_pages = await self._parse_page(session, page)
+                except Exception:
+                    continue
+
+                # Отдаём URL по мере нахождения, с локальной дедупликацией
+                for u in imgs:
+                    if u in yielded_set:
+                        continue
+                    if self.skip_watermarked_urls and self.watermark_keywords and self._is_watermarked_url(u):
+                        continue
+                    yielded_set.add(u)
+                    yield u
+                    yielded += 1
+                    if self.url_collect_limit > 0 and yielded >= self.url_collect_limit:
+                        self.log.info("Достигнут лимит сбора URL (stream): %d. Останавливаем парсинг.", self.url_collect_limit)
+                        return
+
+                processed_pages += 1
+                if processed_pages - last_beat_pages >= 25:
+                    self.log.info(
+                        "URL-сбор: страниц обработано=%d, выдано ссылок=%d, в очереди=%d",
+                        processed_pages, yielded, len(q),
+                    )
+                    last_beat_pages = processed_pages
+
+                if depth < max_depth:
+                    for npg in next_pages:
+                        if npg not in self._seen_pages:
+                            q.append((npg, depth + 1, max_depth))
+
+            self.log.info("URL-сбор завершён (stream): всего выдано ссылок=%d", yielded)

@@ -302,7 +302,7 @@ async def run(cfg: Dict[str, Any], db: Database) -> None:
         cfg["project"].get("target_images", 0),
     )
 
-    # Collect URLs
+    # Инициализируем менеджер источников (streaming)
     sm = SourceManager(
         sources=cfg["download"]["sources"],
         user_agents=cfg["download"]["user_agents"],
@@ -315,11 +315,6 @@ async def run(cfg: Dict[str, Any], db: Database) -> None:
         watermark_keywords=[w for w in cfg["image"].get("watermark_keywords", [])],
         url_collect_limit=int(cfg["download"].get("url_collect_limit", 0)),
     )
-    urls = await sm.collect_image_urls()
-    if not urls:
-        log.warning("Не найдено ни одной ссылки на изображения из заданных источников.")
-        return
-    log.info("К загрузке подготовлено URL: %d", len(urls))
 
     # Prepare HTTP session
     conn = aiohttp.TCPConnector(limit=int(cfg["download"]["threads"]))
@@ -350,11 +345,16 @@ async def run(cfg: Dict[str, Any], db: Database) -> None:
     log_rate: Dict[str, int] = {}
 
     async with aiohttp.ClientSession(connector=conn) as session:
-        sem = asyncio.Semaphore(int(cfg["download"]["threads"]))
+        threads = int(cfg["download"]["threads"])
+        sem = asyncio.Semaphore(threads)
         per_site = int(cfg["download"].get("per_site_concurrency", 2))
         domain_sems: Dict[str, asyncio.Semaphore] = {}
         target = int(cfg["project"].get("target_images", 0) or 0)
-        saved_count = db.get_basic_stats().get("images", 0)
+        saved_count_box = {"n": db.get_basic_stats().get("images", 0)}
+        stop_event = asyncio.Event()
+
+        # Общая очередь URL с backpressure
+        q: asyncio.Queue[Optional[str]] = asyncio.Queue(maxsize=max(threads * 20, 100))
 
         async def guarded(u: str):
             async with sem:
@@ -364,33 +364,60 @@ async def run(cfg: Dict[str, Any], db: Database) -> None:
                 async with domain_sems[d]:
                     return await worker(u, cfg, db, session, cb, storage_root, known_hashes, log_rate, clf)
 
-        tasks = []
-        for u in urls:
-            # Check cap before scheduling
-            if target > 0 and saved_count >= target:
-                break
-            t = asyncio.create_task(guarded(u))
-            tasks.append(t)
-        last_beat = time.time()
-        for fut in asyncio.as_completed(tasks):
+        async def producer():
             try:
-                res = await fut
-                if res is not None:
-                    saved_count += 1
-                if target > 0 and saved_count >= target:
-                    # Cancel remaining tasks politely
-                    for t in tasks:
-                        if not t.done():
-                            t.cancel()
+                async for u in sm.iter_image_urls():
+                    if stop_event.is_set():
+                        break
+                    await q.put(u)
+            finally:
+                # Сигнализируем завершение
+                for _ in range(threads):
+                    await q.put(None)
+
+        async def consumer(idx: int):
+            last_beat = time.time()
+            while True:
+                if stop_event.is_set() and q.empty():
                     break
-                # Периодический heartbeat каждые ~10 сек
+                u = await q.get()
+                if u is None:
+                    q.task_done()
+                    break
+                try:
+                    res = await guarded(u)
+                    if res is not None:
+                        saved_count_box["n"] += 1
+                finally:
+                    q.task_done()
+
+                # Целевая остановка
+                if target > 0 and saved_count_box["n"] >= target:
+                    stop_event.set()
+
+                # Heartbeat каждые ~10 сек с оценкой очереди
                 now = time.time()
                 if now - last_beat >= 10:
-                    in_flight = sum(1 for t in tasks if not t.done())
-                    log.info("Прогресс: сохранено=%d, цель=%s, задач в работе=%d", saved_count, target or "∞", in_flight)
+                    in_queue = q.qsize()
+                    log.info(
+                        "Прогресс: сохранено=%d, цель=%s, в очереди=%d",
+                        saved_count_box["n"], target or "∞", in_queue,
+                    )
                     last_beat = now
-            except Exception:
-                continue
+
+        # Запускаем producer и несколько consumers
+        prod_task = asyncio.create_task(producer())
+        cons_tasks = [asyncio.create_task(consumer(i)) for i in range(threads)]
+
+        # Ждём завершения
+        await prod_task
+        await q.join()
+        stop_event.set()
+        for t in cons_tasks:
+            try:
+                await t
+            except asyncio.CancelledError:
+                pass
 
     if cfg["project"]["max_folder_size_mb"] > 0:
         trigger = auto_pack_if_needed(storage_root, int(cfg["project"]["max_folder_size_mb"]))

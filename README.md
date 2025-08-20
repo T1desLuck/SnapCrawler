@@ -97,21 +97,21 @@ flowchart LR
 erDiagram
   IMAGES ||--o{ HASHES : has
   IMAGES {
-    integer id PK
-    text url
-    text domain
-    integer width
-    integer height
-    text ext
-    text path
-    real score
-    text phash
-    datetime created_at
+    int id PK
+    string url
+    string domain
+    int width
+    int height
+    string ext
+    string path
+    float score
+    string phash
+    date created_at
   }
   HASHES {
-    integer id PK
-    text phash UNIQUE
-    datetime created_at
+    int id PK
+    string phash
+    date created_at
   }
 ```
 

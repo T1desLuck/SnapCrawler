@@ -24,7 +24,7 @@ image:
     - preview
     - thumb
   watermark_pixel_filter:         # Простой пиксельный фильтр водяных знаков (по краям)
-    enable: true
+    enable: false
     band_ratio: 0.15
     edge_threshold: 25
     edge_density: 0.08
@@ -42,17 +42,17 @@ classifier:
 
 # Дедупликация (по pHash)
 deduplication:
-  enable: true                    # Включить проверку дубликатов (визуально похожих)
+  enable: false                    # Включить проверку дубликатов (визуально похожих)
   hamming_threshold: 5            # Порог расстояния Хэмминга: <5 — считаем дубликатом
 
 # Загрузка и парсинг источников
 download:
   threads: 8                      # Одновременные запросы (можно 6–8 при хорошем канале)
   deep_parsing: true              # Глубокий парсинг ссылок <a> в пределах домена (BFS)
-  deep_max_depth: 3               # Максимальная глубина обхода при deep_parsing (BFS по домену)
-  per_site_concurrency: 2         # Параллельные запросы на один домен
+  deep_max_depth: 5               # Максимальная глубина обхода при deep_parsing (BFS по домену)
+  per_site_concurrency: 3         # Параллельные запросы на один домен
   enable_auto_discovery: false    # [зарезервировано] автообнаружение (sitemap/RSS) — не используется
-  request_delay: 0.6              # Базовая задержка между запросами (сек) + джиттер
+  request_delay: 0.4              # Базовая задержка между запросами (сек) + джиттер
   max_requests_per_site: 500      # Лимит запросов на один домен
   circuit_breaker_enabled: true   # Включить circuit breaker (пауза при 429/ошибках)
   url_collect_limit: 0            # 0 — без лимита; иначе ограничить число собранных URL на этапе парсинга
