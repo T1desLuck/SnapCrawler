@@ -1,7 +1,7 @@
 from __future__ import annotations
 import asyncio
 from typing import Iterable, Set, List, Tuple
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit, urlunsplit
 from collections import deque
 
 from bs4 import BeautifulSoup
@@ -58,6 +58,34 @@ class SourceManager:
                 md = self.deep_max_depth if self.deep_parsing else 0
                 norm.append((s, max(0, md)))
         self.sources: List[Tuple[str, int]] = norm
+
+    # Нормализуем URL страницы: убираем фрагменты, унифицируем слеши
+    def _normalize_page_url(self, url: str) -> str:
+        try:
+            sp = urlsplit(url)
+            # Убираем #fragment
+            fragless = sp._replace(fragment="")
+            # Убираем повторные слеши в path и нормализуем хвост (без лишнего "/")
+            path = fragless.path or "/"
+            if path != "/" and path.endswith("/"):
+                path = path[:-1]
+            fragless = fragless._replace(path=path)
+            return urlunsplit(fragless)
+        except Exception:
+            return url
+
+    def _is_pagination_link(self, a_tag, full_url: str) -> bool:
+        try:
+            rel = a_tag.get("rel") or []
+            if isinstance(rel, (list, tuple)) and any(r.lower() == "next" for r in rel):
+                return True
+        except Exception:
+            pass
+        low = full_url.lower()
+        # Простые шаблоны пагинации
+        if "?page=" in low or "/page/" in low or "&page=" in low or "start=" in low or "offset=" in low:
+            return True
+        return False
 
     def _allowed(self, url: str) -> bool:
         d = domain_of(url)
@@ -175,7 +203,7 @@ class SourceManager:
                 href = a.get("href")
                 if not href:
                     continue
-                full = urljoin(url, href)
+                full = self._normalize_page_url(urljoin(url, href))
                 if full in self._seen_pages:
                     continue
                 target_domain = domain_of(full)
@@ -195,7 +223,11 @@ class SourceManager:
                 cand = self._candidate_image_from_link(url, href)
                 if cand:
                     imgs.append(cand)
-                next_pages.append(full)
+                # Сохраняем с приоритетом пагинации ближе к началу обхода
+                if self._is_pagination_link(a, full):
+                    next_pages.insert(0, full)
+                else:
+                    next_pages.append(full)
         return imgs, next_pages
 
     async def collect_image_urls(self) -> List[str]:
@@ -205,7 +237,7 @@ class SourceManager:
             # BFS очередь по страницам: (url, depth, max_depth)
             q: deque[Tuple[str, int, int]] = deque()
             for url, md in self.sources:
-                q.append((url, 0, md))
+                q.append((self._normalize_page_url(url), 0, md))
 
             self.log.info("Старт сбора URL: стартовых страниц=%d, глубина по умолчанию=%d, лимит URL=%s",
                          len(self.sources), self.deep_max_depth, (self.url_collect_limit or "∞"))
@@ -238,7 +270,11 @@ class SourceManager:
                 if depth < max_depth:
                     for npg in next_pages:
                         if npg not in self._seen_pages:
-                            q.append((npg, depth + 1, max_depth))
+                            # Пагинацию ставим в начало очереди
+                            if self._is_pagination_link(None, npg):
+                                q.appendleft((npg, depth + 1, max_depth))
+                            else:
+                                q.append((npg, depth + 1, max_depth))
 
         # Фильтр-страховка по ключевым словам (если попали из вне)
         if self.skip_watermarked_urls and self.watermark_keywords:

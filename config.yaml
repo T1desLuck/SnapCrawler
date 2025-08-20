@@ -38,18 +38,18 @@ image:
     edge_threshold: 28           # Порог градиента для подсчёта краёв
     edge_density_center: 0.18    # Порог плотности «текстовых» краёв в центральной области
 
-    # URL-фильтр логотипов/иконок
-    skip_logo_urls: true
-    logo_keywords:
-      - logo
-      - favicon
-      - icon
-      - header-logo
-    # Эвристика для логотипов с альфа-каналом (полупрозрачный/прозрачный фон)
-    logo_alpha_filter:
-      enable: true
-      alpha_threshold: 24         # Порог прозрачности (0..255): <= считаем прозрачным
-      transparent_fraction: 0.30  # Если доля прозрачных пикселей выше — отбрасываем
+  # URL-фильтр логотипов/иконок
+  skip_logo_urls: true
+  logo_keywords:
+    - logo
+    - favicon
+    - icon
+    - header-logo
+  # Эвристика для логотипов с альфа-каналом (полупрозрачный/прозрачный фон)
+  logo_alpha_filter:
+    enable: true
+    alpha_threshold: 24         # Порог прозрачности (0..255): <= считаем прозрачным
+    transparent_fraction: 0.30  # Если доля прозрачных пикселей выше — отбрасываем
 
 # Настройки нейросетевого фильтра (опционально). Если модели нет — автодеактивация.
 classifier:
@@ -73,22 +73,35 @@ download:
   deep_parsing: true                     # Глубокий парсинг ссылок <a> в пределах домена (BFS)
   deep_max_depth: 10                      # Максимальная глубина обхода при deep_parsing (BFS по домену)
   allow_subdomains: true                 # Разрешать переход на поддомены того же сайта при BFS
-  per_site_concurrency: 2                # Параллельные запросы на один домен
+  per_site_concurrency: 1                # Параллельные запросы на один домен (стелс)
   enable_auto_discovery: true            # [зарезервировано] автообнаружение (sitemap/RSS) — не используется
-  request_delay: 1.0                     # Базовая задержка между запросами (сек) + джиттер
-  max_requests_per_site: 5000            # Лимит запросов на один домен
+  request_delay: 1.6                     # Базовая задержка между запросами (сек) + джиттер (естественнее)
+  max_requests_per_site: 2000            # Лимит запросов на один домен (меньше — меньше риск бана)
   circuit_breaker_enabled: true          # Включить circuit breaker (пауза при 429/ошибках)
   url_collect_limit: 0                   # 0 — без лимита; иначе ограничить число собранных URL на этапе парсинга
-  user_agents:                           # Ротация User‑Agent для «незаметности»
-    - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-    - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15"
+  user_agents:                           # Ротация User‑Agent для «незаметности» (desktop+mobile)
+    - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    - "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Safari/605.1.15"
+    - "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    - "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0"
+    - "Mozilla/5.0 (Macintosh; Intel Mac OS X 13.5; rv:119.0) Gecko/20100101 Firefox/119.0"
+    - "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:116.0) Gecko/20100101 Firefox/116.0"
+    - "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1"
+    - "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36"
+    - "Mozilla/5.0 (Linux; Android 13; SM-G996B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Mobile Safari/537.36"
+    - "Mozilla/5.0 (iPad; CPU OS 16_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.7 Mobile/15E148 Safari/604.1"
+    - "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:118.0) Gecko/20100101 Firefox/118.0"
+    - "Mozilla/5.0 (Macintosh; Intel Mac OS X 12_6_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"
+    - "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+    - "Mozilla/5.0 (Linux; Android 12; Mi 11) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Mobile Safari/537.36"
+    - "Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1"
   proxies: []                            # [зарезервировано] список прокси (не используется в текущей версии)
   sources:
     - "https://unsplash.com"
     - "https://www.pexels.com"
     - url: "https://pixabay.com/photos"
       deep: true
-      max_depth: 100
+      max_depth: 20
     - "https://commons.wikimedia.org"
 
 # Настройки CLIP zero-shot (ONNX) для пост-фильтра
