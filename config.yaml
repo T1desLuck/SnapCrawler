@@ -1,0 +1,110 @@
+# Конфигурация SnapCrawler
+
+# ===================================
+# Настройки фильтрации изображений
+# ===================================
+images:
+  # Минимальный размер по наименьшей стороне в пикселях (0 = без лимита)
+  min_side_size: 512
+  # Режим цветности: 'color', 'bw', 'all'
+  color_mode: 'color'
+  # Разрешить/запретить логотипы и баннеры
+  # false = фильтровать баннеры/логотипы (проверка экстремальных соотношений сторон), true = пропускать
+  allow_logos_banners: false
+  # Разрешить/запретить изображения с водяными знаками
+  # false = фильтровать изображения с водяными знаками (включить детекцию), true = пропускать (детекция отключена)
+  allow_watermarks: false
+  # Чувствительность детекции водяных знаков (больше = строже)
+  watermark_sensitivity: 50
+  # Включить дедупликацию изображений
+  # true = удалять дубликаты по перцептивному хэшу, false = не проверять на дубли
+  deduplication: true
+  # Список разрешенных форматов
+  formats: ['jpg', 'jpeg', 'webp']
+  # Требуемая ориентация: 'square', 'vertical', 'horizontal', 'all'
+  orientation: 'all'
+  # Минимальное DPI изображения (0 = не проверять)
+  min_dpi: 72
+  # Диапазон соотношения сторон (0 = без лимита)
+  aspect_ratio_min: 0.2
+  aspect_ratio_max: 5.0
+
+# ===================================
+# Настройки обхода и парсинга
+# ===================================
+crawling:
+  # Стартовые URL для начала обхода
+  start_urls:
+    - 'https://commons.wikimedia.org/wiki/Category:Categories'
+    - 'https://pixabay.com/'
+    - 'https://www.freeimages.com/photo'
+    - 'https://isorepublic.com'
+    - 'https://stocksnap.io/'
+    - 'https://kaboompics.com'
+    - 'https://www.lifeofpix.com/'
+    # - https://www.pexels.com/ # Требуются прокси для обхода анти-скрейпинг защиты
+  max_depth: 5
+  # Включить рендеринг JavaScript через headless-браузер
+  js_enabled: true
+  # Задержка между запросами в секундах
+  request_delay: 1.0
+  # Максимальная задержка при адаптивном замедлении
+  max_delay: 30.0
+  # Коэффициент увеличения задержки при ошибках
+  backoff_factor: 2.0
+  # Максимальное количество запросов (0 = без лимита)
+  max_requests: 1000
+  # Включить "скрытый режим" (ротация UA и прокси)
+  stealth_mode: true
+  # API ключ для сервиса решения CAPTCHA (2captcha, anticaptcha и др.)
+  captcha_api_key: ''
+  # Включить перехват Ajax/API запросов для поиска изображений
+  intercept_ajax: true
+  # Включить эмуляцию бесконечной прокрутки (infinite scroll) для динамических сайтов
+  infinite_scroll: true
+  # Уважать правила из robots.txt
+  respect_robots_txt: true
+  # Автоматическая регулировка скорости в зависимости от ответа сервера
+  auto_throttle: true
+  # Максимальное количество потоков для скачивания
+  max_threads: 8
+  # Список прокси для ротации (формат: 'http://host:port')
+  # Бесплатные прокси для обхода блокировок и увеличения скорости
+  proxies:
+    - 'http://51.158.154.173:3128'    # Франция
+    - 'http://185.199.229.156:7492'   # США  
+    - 'http://89.208.219.121:8080'    # Россия
+    - 'http://159.69.153.169:5566'    # Германия
+    # Добавьте свои прокси по необходимости:
+    # - 'http://user:pass@premium-proxy.com:8000'
+  # Список пользовательских агентов (User-Agent) для ротации
+  user_agents:
+    - 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    - 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
+    - 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    - 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15'
+    - 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    - 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0'
+    - 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0'
+
+# ===================================
+# Ограничения ресурсов
+# ===================================
+limits:
+  # Максимальный размер папки со скачанными изображениями в МБ (0 = без лимита)
+  max_folder_size_mb: 0
+  # Максимальное количество изображений для скачивания (0 = без лимита)
+  max_images: 150000
+
+# ===================================
+# Общие настройки
+# ===================================
+general:
+  # Уровень логирования: 'debug', 'info', 'warning', 'error'
+  log_level: 'info'
+  # Директория для сохранения результатов
+  output_dir: 'downloads'
+  # Режим работы: 'scrapy' (стандартный) или 'parallel' (двухмодульный)
+  mode: 'parallel'
+  # Включить детальную статистику древесного обхода
+  detailed_tree_stats: false
