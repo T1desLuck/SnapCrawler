@@ -7,20 +7,20 @@ images:
   # Минимальный размер по наименьшей стороне в пикселях (0 = без лимита)
   min_side_size: 512
   # Режим цветности: 'color', 'bw', 'all'
-  color_mode: 'color'
+  color_mode: 'all'
   # Разрешить/запретить логотипы и баннеры
   # false = фильтровать баннеры/логотипы (проверка экстремальных соотношений сторон), true = пропускать
-  allow_logos_banners: false
+  allow_logos_banners: true
   # Разрешить/запретить изображения с водяными знаками
   # false = фильтровать изображения с водяными знаками (включить детекцию), true = пропускать (детекция отключена)
-  allow_watermarks: false
+  allow_watermarks: true
   # Чувствительность детекции водяных знаков (больше = строже)
-  watermark_sensitivity: 50
+  watermark_sensitivity: 0
   # Включить дедупликацию изображений
   # true = удалять дубликаты по перцептивному хэшу, false = не проверять на дубли
   deduplication: true
   # Список разрешенных форматов
-  formats: ['jpg', 'jpeg', 'webp']
+  formats: ['jpg', 'jpeg', 'webp', 'png']
   # Требуемая ориентация: 'square', 'vertical', 'horizontal', 'all'
   orientation: 'all'
   # Минимальное DPI изображения (0 = не проверять)
