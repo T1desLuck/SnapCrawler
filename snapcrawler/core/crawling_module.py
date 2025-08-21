@@ -111,6 +111,26 @@ class CrawlingModule:
                     })
                     self.images_found += 1
                 
+                # Встраиваем отложенные страницы изображений для этой глубины
+                try:
+                    cascade_links = list(self.urls_by_depth.get(depth, []))
+                except Exception:
+                    cascade_links = []
+                if cascade_links:
+                    self.logger.debug(
+                        f"Вставляю {len(cascade_links)} каскадных страниц изображений на глубине {depth}"
+                    )
+                    # Немедленно поставить их в очередь на той же глубине
+                    for link in cascade_links:
+                        if link not in self.visited_urls:
+                            url_queue.insert(0, (link, depth))
+                            self.visited_urls[link] = True
+                    # Очистить использованные записи, чтобы избежать повторов
+                    try:
+                        self.urls_by_depth[depth] = []
+                    except Exception:
+                        pass
+                
                 # Добавляем новые ссылки в очередь для «роста дерева»
                 new_links_added = 0
                 for link in new_links:
@@ -165,7 +185,19 @@ class CrawlingModule:
                 self.logger.info(f"Обнаружен дубликат страницы, пропускаем: {url}")
                 return [], []
             
-            self.page_hashes.append(page_hash)
+            # Поддержка как list-прокси Manager, так и обычного set в юнитах
+            try:
+                adder = self.page_hashes.add  # type: ignore[attr-defined]
+            except Exception:
+                adder = None
+            if adder:
+                adder(page_hash)
+            else:
+                # fallback для list-прокси
+                try:
+                    self.page_hashes.append(page_hash)
+                except Exception:
+                    pass
             
             images = self.extract_images(soup, url)
             
