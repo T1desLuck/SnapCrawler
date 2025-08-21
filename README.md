@@ -109,11 +109,11 @@ SnapCrawler — это продвинутый веб‑паук для авто�
 ### Параллельная обработка
 ```mermaid
 flowchart LR
-    A[Crawling Module]\nScrapy/Playwright -->|ссылки/URL изображений| Q[(Queue)]
-    Q --> B[Filtering Module]\nPipelines/Filters
-    A -.статистика .-> S[Statistics]
-    B -.статистика .-> S
-    S --> M[Parallel Manager]
+    A["Crawling Module<br/>Scrapy/Playwright"] -->|ссылки/URL изображений| Q[(Queue)]
+    Q --> B["Filtering Module<br/>Pipelines/Filters"]
+    A -. статиcтика .-> S["Statistics"]
+    B -. статиcтика .-> S
+    S --> M["Parallel Manager"]
 ```
 
 ## 📈 Производительность
