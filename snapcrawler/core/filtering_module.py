@@ -215,7 +215,7 @@ class FilteringModule:
             # Фильтр размера
             if not self.is_valid_size(img):
                 min_side = self.filtering_config.get('min_side_size', 0)
-                self.logger.info(f"❌ [{filename}] Размер {img.size}, требуется мин. сторона {min_side}px")
+                self.logger.debug(f"❌ [{filename}] Размер {img.size}, требуется мин. сторона {min_side}px")
                 return False
             
             # Фильтр формата
