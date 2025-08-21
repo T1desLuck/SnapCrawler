@@ -5,7 +5,7 @@
 # ===================================
 images:
   # Минимальный размер по наименьшей стороне в пикселях (0 = без лимита)
-  min_side_size: 450
+  min_side_size: 500
   # Режим цветности: 'color', 'bw', 'all'
   color_mode: 'all'
   # Разрешить/запретить логотипы и баннеры
@@ -20,7 +20,7 @@ images:
   # true = удалять дубликаты по перцептивному хэшу, false = не проверять на дубли
   deduplication: true
   # Список разрешенных форматов
-  formats: ['jpg', 'jpeg', 'webp', 'png']
+  formats: ['jpg', 'jpeg', 'png']
   # Требуемая ориентация: 'square', 'vertical', 'horizontal', 'all'
   orientation: 'all'
   # Минимальное DPI изображения (0 = не проверять)
@@ -35,23 +35,20 @@ images:
 crawling:
   # Стартовые URL для начала обхода
   start_urls:
-    - 'https://commons.wikimedia.org/wiki/Category:Categories'
+    - 'https://commons.wikimedia.org/wiki/Category:Categories/'
     - 'https://pixabay.com/'
-    - 'https://www.freeimages.com/photo'
-    - 'https://isorepublic.com'
-    - 'https://stocksnap.io/'
-    - 'https://kaboompics.com'
-    - 'https://www.lifeofpix.com/'
-    # - https://www.pexels.com/ # Требуются прокси для обхода анти-скрейпинг защиты
+    - 'https://www.freeimages.com/photo/'
+    - 'https://unsplash.com/'
+    - 'https://www.pexels.com/'
   max_depth: 5
   # Включить рендеринг JavaScript через headless-браузер
   js_enabled: true
   # Задержка между запросами в секундах
-  request_delay: 1.0
+  request_delay: 0.5
   # Максимальная задержка при адаптивном замедлении
-  max_delay: 30.0
+  max_delay: 20.0
   # Коэффициент увеличения задержки при ошибках
-  backoff_factor: 2.0
+  backoff_factor: 1.5
   # Максимальное количество запросов (0 = без лимита)
   max_requests: 0
   # Включить "скрытый режим" (ротация UA и прокси)
@@ -75,6 +72,7 @@ crawling:
     - 'http://185.199.229.156:7492'   # США  
     - 'http://89.208.219.121:8080'    # Россия
     - 'http://159.69.153.169:5566'    # Германия
+    - 'http://user:pass@premium-proxy.com:8000'
     # Добавьте свои прокси по необходимости:
     # - 'http://user:pass@premium-proxy.com:8000'
   # Список пользовательских агентов (User-Agent) для ротации
