@@ -35,6 +35,17 @@ class FilteringModule:
         self.stats_queue = stats_queue    # Очередь статистики
         
         self.session = requests.Session()
+        # Настройка User-Agent для обхода блокировок
+        self.session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Sec-Fetch-Dest': 'image',
+            'Sec-Fetch-Mode': 'no-cors',
+            'Sec-Fetch-Site': 'cross-site'
+        })
         self.image_hashes = set()  # Для обнаружения дубликатов
         
         # Подготовка директорий
@@ -82,7 +93,7 @@ class FilteringModule:
                     self.logger.info("Получен сигнал завершения обхода")
                     break
                 
-                if item.get('type') == 'image':
+                if item.get('type') == 'image_url':
                     self.process_image(item)
                 
                 # Проверяем лимиты
@@ -182,6 +193,21 @@ class FilteringModule:
     def apply_filters(self, image_path: str) -> bool:
         """Применяет все фильтры. Возвращает True, если изображение прошло все проверки"""
         try:
+            # Проверка на SVG и конвертация при необходимости
+            if image_path.lower().endswith('.svg'):
+                try:
+                    from ..utils.svg_processor import convert_svg_to_png
+                    png_path = convert_svg_to_png(image_path)
+                    if png_path:
+                        # Заменяем SVG на PNG
+                        os.remove(image_path)
+                        os.rename(png_path, image_path.replace('.svg', '.png'))
+                        image_path = image_path.replace('.svg', '.png')
+                    else:
+                        return False  # SVG не удалось конвертировать
+                except ImportError:
+                    return False  # SVG процессор недоступен
+            
             img = Image.open(image_path)
             
             # Фильтр размера
