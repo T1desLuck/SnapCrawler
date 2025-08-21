@@ -48,6 +48,8 @@ class FilteringModule:
             'Sec-Fetch-Site': 'cross-site'
         })
         self.image_hashes = set()  # Для обнаружения дубликатов
+        # Троттлинг ошибок скачивания: ключ (host:status) -> счётчик
+        self.download_error_tally: Dict[str, int] = {}
         
         # Подготовка директорий
         self.raw_dir = os.path.join(self.output_dir, 'raw')
@@ -195,7 +197,29 @@ class FilteringModule:
             return raw_path
             
         except Exception as e:
-            self.logger.error(f"Не удалось скачать {url}: {e}")
+            # Троттлим однотипные ошибки скачивания, чтобы не спамить
+            host = ''
+            status = ''
+            if isinstance(e, requests.HTTPError) and getattr(e, 'response', None) is not None:
+                try:
+                    status = str(e.response.status_code)
+                    host = urlparse(e.response.url).netloc
+                except Exception:
+                    pass
+            else:
+                try:
+                    host = urlparse(url).netloc
+                except Exception:
+                    pass
+            key = f"{host}:{status}" if host or status else 'generic'
+            count = self.download_error_tally.get(key, 0) + 1
+            self.download_error_tally[key] = count
+
+            # Логируем предупреждение только для первых 3 случаев и далее каждое 50-е повторение
+            if count <= 3 or count % 50 == 0:
+                self.logger.warning(f"Скачивание не удалось ({key}) x{count}: {url} -> {e}")
+            else:
+                self.logger.debug(f"Скачивание не удалось ({key}) x{count}: {url}")
             return None
 
     def _sanitize_filename(self, name: str) -> str:

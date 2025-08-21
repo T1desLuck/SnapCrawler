@@ -175,7 +175,17 @@ class CrawlingModule:
         """
         try:
             response = self.session.get(url, timeout=30)
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except requests.HTTPError as he:
+                code = getattr(he.response, 'status_code', None)
+                if code == 404:
+                    self.logger.debug(f"Страница не найдена (404): {url}")
+                elif code and 400 <= code < 500:
+                    self.logger.warning(f"Клиентская ошибка {code} при обращении к {url}")
+                else:
+                    self.logger.warning(f"HTTP ошибка при обращении к {url}: {he}")
+                return [], []
             
             soup = BeautifulSoup(response.content, 'html.parser')
             
@@ -207,7 +217,7 @@ class CrawlingModule:
             return images, links
             
         except Exception as e:
-            self.logger.error(f"Не удалось обойти {url}: {e}")
+            self.logger.warning(f"Не удалось обойти {url}: {e}")
             return [], []
     
     def extract_images(self, soup: BeautifulSoup, base_url: str) -> List[str]:
@@ -330,14 +340,39 @@ class CrawlingModule:
             if any(url_lower.endswith(ext) for ext in image_extensions):
                 return True
 
+        # Wikimedia thumbnails: отбрасываем слишком маленькие (конфиг-управляемо)
+        if 'commons.wikimedia.org' in url_lower and '/thumb/' in url_lower:
+            import re
+            # Порог в таком порядке: crawling.min_commons_thumb_px -> images.min_side_size -> 300
+            min_px_cfg = (
+                self.crawling_config.get('min_commons_thumb_px')
+                if isinstance(self.crawling_config, dict) else None
+            )
+            if min_px_cfg is None:
+                try:
+                    images_cfg = self.config.get('images', {}) if isinstance(self.config, dict) else {}
+                    min_px_cfg = images_cfg.get('min_side_size')
+                except Exception:
+                    min_px_cfg = None
+            try:
+                min_px = int(min_px_cfg) if min_px_cfg is not None else 300
+            except Exception:
+                min_px = 300
+
+            m = re.search(r'/(\d+)px-', url_lower)
+            if m:
+                try:
+                    width = int(m.group(1))
+                    if width < min_px:
+                        return False
+                except Exception:
+                    pass
+            return True
+
         # Прямые расширения
         if any(url_lower.endswith(ext) for ext in image_extensions):
             return True
         
-        # Wikimedia Commons специальные URL миниатюр
-        if 'commons.wikimedia.org' in url_lower and '/thumb/' in url_lower:
-            return True
-            
         # Исключаем явно не-изображения
         exclude_patterns = ['.css', '.js', '.html', '.php', '.xml', '.json']
         if any(pattern in url_lower for pattern in exclude_patterns):
