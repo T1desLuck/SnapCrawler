@@ -307,18 +307,35 @@ class CrawlingModule:
                     links.append(absolute_url)
         
         return links
-    
+
     def is_valid_image_url(self, url: str) -> bool:
-        """Проверяет, указывает ли URL на изображение"""
+        """Проверяет, указывает ли URL на изображение (с особыми правилами для Wikimedia)"""
         image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.tiff', '.ico']
         url_lower = url.lower()
-        
+        parsed = urlparse(url)
+
+        # Wikimedia Commons домен (HTML-страницы wiki)
+        if parsed.netloc.endswith('commons.wikimedia.org'):
+            path_lower = parsed.path.lower()
+            # Страницы вида /wiki/File:* — это страницы, а не прямые файлы
+            if path_lower.startswith('/wiki/file:'):
+                return False
+            # Прямой маршрут к файлу
+            if path_lower.startswith('/wiki/special:filepath/'):
+                return True
+
+        # Прямой хост загрузок Wikimedia
+        if parsed.netloc.endswith('upload.wikimedia.org'):
+            # Как правило это статические файлы; дополнительно проверим расширение
+            if any(url_lower.endswith(ext) for ext in image_extensions):
+                return True
+
         # Прямые расширения
         if any(url_lower.endswith(ext) for ext in image_extensions):
             return True
-            
-        # Wikimedia Commons специальные URL
-        if 'commons.wikimedia.org' in url and '/thumb/' in url:
+        
+        # Wikimedia Commons специальные URL миниатюр
+        if 'commons.wikimedia.org' in url_lower and '/thumb/' in url_lower:
             return True
             
         # Исключаем явно не-изображения
