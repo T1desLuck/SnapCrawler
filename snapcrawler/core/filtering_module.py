@@ -210,50 +210,66 @@ class FilteringModule:
             
             img = Image.open(image_path)
             
+            filename = os.path.basename(image_path)
+            
             # Фильтр размера
             if not self.is_valid_size(img):
-                self.logger.debug(f"Фильтр размера не пройден: {img.size}")
+                min_side = self.filtering_config.get('min_side_size', 0)
+                self.logger.info(f"❌ [{filename}] Размер {img.size}, требуется мин. сторона {min_side}px")
                 return False
             
             # Фильтр формата
             if not self.is_valid_format(image_path):
-                self.logger.debug(f"Фильтр формата не пройден: {os.path.splitext(image_path)[1]}")
+                allowed = self.filtering_config.get('formats', [])
+                ext = os.path.splitext(image_path)[1]
+                self.logger.info(f"❌ [{filename}] Формат {ext}, разрешены: {allowed}")
                 return False
             
             # Фильтр DPI
             if not self.is_valid_dpi(img):
-                self.logger.debug("Фильтр DPI не пройден")
+                min_dpi = self.filtering_config.get('min_dpi', 0)
+                actual_dpi = img.info.get('dpi', 'неизвестно')
+                self.logger.info(f"❌ [{filename}] DPI {actual_dpi}, требуется мин. {min_dpi}")
                 return False
             
             # Фильтр цветового режима
             if not self.is_valid_color_mode(img):
-                self.logger.debug(f"Фильтр цветового режима не пройден: {img.mode}")
+                color_mode = self.filtering_config.get('color_mode', 'all')
+                self.logger.info(f"❌ [{filename}] Режим {img.mode}, требуется: {color_mode}")
                 return False
             
             # Фильтр ориентации
             if not self.is_valid_orientation(img):
-                self.logger.debug(f"Фильтр ориентации не пройден: {img.size}")
+                orientation = self.filtering_config.get('orientation', 'all')
+                self.logger.info(f"❌ [{filename}] Размер {img.size}, требуется: {orientation}")
                 return False
             
             # Фильтр диапазона соотношения сторон
             if not self.is_valid_aspect_ratio_range(img):
-                self.logger.debug(f"Фильтр диапазона соотношения сторон не пройден: {img.size[0]/img.size[1]:.2f}")
+                ratio = img.size[0]/img.size[1] if img.size[1] > 0 else 1
+                min_r = self.filtering_config.get('aspect_ratio_min', 0)
+                max_r = self.filtering_config.get('aspect_ratio_max', 0)
+                self.logger.info(f"❌ [{filename}] Соотношение {ratio:.2f}, диапазон: {min_r}-{max_r}")
                 return False
             
             # Фильтр дубликатов
             if self.is_duplicate(img):
-                self.logger.debug("Фильтр дубликатов не пройден")
+                self.logger.info(f"❌ [{filename}] Дубликат по perceptual hash")
                 return False
             
             # Фильтр водяных знаков
             if self.has_watermark(image_path):
-                self.logger.debug("Фильтр водяных знаков не пройден")
+                sensitivity = self.filtering_config.get('watermark_sensitivity', 50)
+                self.logger.info(f"❌ [{filename}] Водяной знак (чувствительность: {sensitivity})")
                 return False
             
             # Фильтр баннеров/логотипов
             if not self.is_valid_aspect_ratio(img):
-                self.logger.debug(f"Фильтр баннеров/логотипов не пройден: {img.size}")
+                ratio = img.size[0]/img.size[1] if img.size[1] > 0 else 1
+                self.logger.info(f"❌ [{filename}] Баннер/логотип, соотношение: {ratio:.2f}")
                 return False
+            
+            self.logger.info(f"✅ [{filename}] Прошел все фильтры: {img.size}, {img.mode}")
             
             return True
             
@@ -378,6 +394,21 @@ class FilteringModule:
 
 def run_filtering_module(config, image_queue, stats_queue, shutdown_event=None):
     """Точка входа для процесса модуля фильтрации"""
-    logging.basicConfig(level=logging.INFO)
+    # Настройка логирования с UTF-8 для filtering_module
+    import sys
+    import contextlib
+    
+    with contextlib.suppress(Exception):
+        if hasattr(sys.stdout, 'reconfigure'):
+            sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        if hasattr(sys.stderr, 'reconfigure'):
+            sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s [%(name)s] %(levelname)s: %(message)s',
+        handlers=[logging.StreamHandler(sys.stdout)]
+    )
+    
     module = FilteringModule(config, image_queue, stats_queue)
     module.run()
