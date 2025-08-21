@@ -35,16 +35,14 @@ images:
 crawling:
   # Стартовые URL для начала обхода
   start_urls:
-    - 'https://commons.wikimedia.org/wiki/Category:Categories/'
-    - 'https://pixabay.com/'
+    - 'https://commons.m.wikimedia.org/wiki/Category:CommonsRoot/'
+    - 'https://www.rawpixel.com/search?page=1&path=1522%7Csearch_tl-34%7Ctags_or-%24photos%7C%24free&sort=curated/'
     - 'https://www.freeimages.com/photo/'
-    - 'https://unsplash.com/'
-    - 'https://www.pexels.com/'
   max_depth: 5
   # Включить рендеринг JavaScript через headless-браузер
   js_enabled: true
   # Задержка между запросами в секундах
-  request_delay: 0.5
+  request_delay: 1.0
   # Максимальная задержка при адаптивном замедлении
   max_delay: 20.0
   # Коэффициент увеличения задержки при ошибках
