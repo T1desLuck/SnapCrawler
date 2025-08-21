@@ -95,6 +95,9 @@ class CrawlingModule:
                 continue
             
             try:
+                # Устанавливаем текущую глубину для add_image_page_to_queue
+                self.current_depth = depth
+                
                 # Обходим страницу и извлекаем изображения/ссылки
                 images, new_links = self.crawl_page(current_url)
                 
@@ -181,9 +184,31 @@ class CrawlingModule:
         
         # Стандартные теги <img>
         for img in soup.find_all('img'):
+            # Прямые ссылки на изображения
             src = img.get('src') or img.get('data-src') or img.get('data-lazy-src')
             if src:
                 absolute_url = urljoin(base_url, src)
+                if self.is_valid_image_url(absolute_url):
+                    images.append(absolute_url)
+            
+            # Поиск ссылок на полноразмерные версии
+            parent_a = img.find_parent('a')
+            if parent_a and parent_a.get('href'):
+                href = parent_a.get('href')
+                absolute_href = urljoin(base_url, href)
+                
+                # Если ссылка ведет на изображение - добавляем
+                if self.is_valid_image_url(absolute_href):
+                    images.append(absolute_href)
+                # Если ссылка ведет на страницу изображения - добавляем в очередь обхода
+                elif self.is_image_page_url(absolute_href, base_url):
+                    self.add_image_page_to_queue(absolute_href)
+        
+        # Wikimedia Commons специальные атрибуты
+        for element in soup.find_all(attrs={'data-file-url': True}):
+            file_url = element.get('data-file-url')
+            if file_url:
+                absolute_url = urljoin(base_url, file_url)
                 if self.is_valid_image_url(absolute_url):
                     images.append(absolute_url)
         
@@ -209,6 +234,29 @@ class CrawlingModule:
         
         return list(set(images))  # Удаляем дубликаты
     
+    def is_image_page_url(self, url: str, base_url: str) -> bool:
+        """Определяет, является ли URL страницей изображения"""
+        # Wikimedia Commons паттерны
+        if 'commons.wikimedia.org' in base_url:
+            return ('/wiki/File:' in url or '/wiki/Category:' in url)
+        
+        # Общие паттерны страниц изображений
+        image_page_patterns = [
+            '/image/', '/photo/', '/picture/', '/img/', '/gallery/',
+            'image_id=', 'photo_id=', 'picture_id='
+        ]
+        return any(pattern in url.lower() for pattern in image_page_patterns)
+    
+    def add_image_page_to_queue(self, url: str):
+        """Добавляет страницу изображения в очередь для дальнейшего обхода"""
+        if url not in self.visited_urls:
+            # Добавляем в текущую глубину для немедленной обработки
+            current_depth = getattr(self, 'current_depth', 0)
+            if current_depth not in self.urls_by_depth:
+                self.urls_by_depth[current_depth] = []
+            self.urls_by_depth[current_depth].append(url)
+            self.logger.debug(f"Добавлена страница изображения в очередь: {url}")
+    
     def extract_links(self, soup: BeautifulSoup, base_url: str) -> List[str]:
         """Извлекает все навигационные ссылки для «роста дерева»"""
         links = []
@@ -230,8 +278,23 @@ class CrawlingModule:
     
     def is_valid_image_url(self, url: str) -> bool:
         """Проверяет, указывает ли URL на изображение"""
-        image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp']
-        return any(url.lower().endswith(ext) for ext in image_extensions)
+        image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.tiff', '.ico']
+        url_lower = url.lower()
+        
+        # Прямые расширения
+        if any(url_lower.endswith(ext) for ext in image_extensions):
+            return True
+            
+        # Wikimedia Commons специальные URL
+        if 'commons.wikimedia.org' in url and '/thumb/' in url:
+            return True
+            
+        # Исключаем явно не-изображения
+        exclude_patterns = ['.css', '.js', '.html', '.php', '.xml', '.json']
+        if any(pattern in url_lower for pattern in exclude_patterns):
+            return False
+            
+        return False
 
 
 def run_crawling_module(config, image_queue, stats_queue, shutdown_event=None):
