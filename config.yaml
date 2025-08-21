@@ -35,9 +35,9 @@ images:
 crawling:
   # Стартовые URL для начала обхода
   start_urls:
-    - 'https://commons.m.wikimedia.org/wiki/Category:CommonsRoot/'
-    - 'https://www.rawpixel.com/search?page=1&path=1522%7Csearch_tl-34%7Ctags_or-%24photos%7C%24free&sort=curated/'
-    - 'https://www.freeimages.com/photo/'
+    - 'https://commons.m.wikimedia.org/wiki/Category:CommonsRoot'
+    - 'https://icons8.com/photos/t/moose'
+    - 'https://www.freeimages.com/photo'
   max_depth: 5
   # Включить рендеринг JavaScript через headless-браузер
   js_enabled: true
