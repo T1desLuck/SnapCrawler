@@ -15,6 +15,7 @@ import numpy as np
 import yaml
 from typing import Set, Dict, List
 from urllib.parse import urlparse
+import re
 
 class FilteringModule:
     """
@@ -163,13 +164,20 @@ class FilteringModule:
         try:
             response = self.session.get(url, timeout=30, stream=True)
             response.raise_for_status()
+            # Проверяем, что получаем именно изображение
+            content_type = response.headers.get('Content-Type', '')
+            if 'image' not in content_type.lower():
+                self.logger.debug(f"Пропущено (не image Content-Type): {url} -> {content_type}")
+                return None
             
             # Формируем имя файла по URL
             parsed = urlparse(url)
             filename = os.path.basename(parsed.path)
             if not filename or '.' not in filename:
                 filename = f"image_{hash(url) % 1000000}.jpg"
-            
+            # Санитизируем имя файла для совместимости с ОС (Windows и др.)
+            filename = self._sanitize_filename(filename)
+
             raw_path = os.path.join(self.raw_dir, filename)
             
             # Обработка коллизий имён файлов
@@ -189,6 +197,13 @@ class FilteringModule:
         except Exception as e:
             self.logger.error(f"Не удалось скачать {url}: {e}")
             return None
+
+    def _sanitize_filename(self, name: str) -> str:
+        """Заменяет недопустимые символы в имени файла безопасными подчеркиваниями"""
+        # Недопустимые для Windows: < > : " / \ | ? * и управляющие
+        name = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '_', name)
+        # Ограничим длину до разумной (например, 200 символов)
+        return name[:200]
     
     def apply_filters(self, image_path: str) -> bool:
         """Применяет все фильтры. Возвращает True, если изображение прошло все проверки"""
