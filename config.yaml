@@ -5,24 +5,24 @@
 # ===================================
 images:
   # Минимальный размер по наименьшей стороне в пикселях (0 = без лимита)
-  min_side_size: 0
+  min_side_size: 500
   # Режим цветности: 'color', 'bw', 'all'
-  color_mode: 'all'
+  color_mode: 'color'
   # Разрешить/запретить логотипы и баннеры
   # false = фильтровать баннеры/логотипы (проверка экстремальных соотношений сторон), true = пропускать
-  allow_logos_banners: true
+  allow_logos_banners: false
   # Разрешить/запретить изображения с водяными знаками
   # false = фильтровать изображения с водяными знаками (включить детекцию), true = пропускать (детекция отключена)
-  allow_watermarks: true
+  allow_watermarks: false
   # Чувствительность детекции водяных знаков (больше = строже)
   watermark_sensitivity: 0
   # Включить дедупликацию изображений
   # true = удалять дубликаты по перцептивному хэшу, false = не проверять на дубли
   deduplication: true
   # Список форматов изображений для скачивания (включая новые форматы 2025)
-  formats: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff', 'webp', 'avif', 'heic', 'heif', 'svg', 'jxl']
+  formats: ['jpg', 'jpeg', 'png', 'svg']
   # Минимальное DPI изображения (0 = не проверять)
-  min_dpi: 72
+  min_dpi: 0
   # Диапазон соотношения сторон (0 = без лимита)
   aspect_ratio_min: 0.2
   aspect_ratio_max: 5.0
@@ -41,15 +41,15 @@ images:
   ai_optimization:
     enabled: false  # Включить AI оптимизацию (требует дополнительные ресурсы)
     enhance_quality: false  # Улучшение качества изображений
-    smart_cropping: false  # Умная обрезка
+    smart_cropping: true  # Умная обрезка
     content_analysis: true  # Анализ содержимого изображений
     format_conversion: true  # Автоматическое преобразование форматов
-    max_image_size: 2048  # Максимальный размер изображения в пикселях
+    max_image_size: 7000  # Максимальный размер изображения в пикселях
     enable_optimization: false  # Общая оптимизация
   # Требуемая ориентация: 'square', 'vertical', 'horizontal', 'all'
   orientation: 'all'
   # Минимальное DPI изображения (0 = не проверять)
-  min_dpi: 50
+  min_dpi: 0
   # Диапазон соотношения сторон (0 = без лимита)
   aspect_ratio_min: 0.2
   aspect_ratio_max: 5.0
