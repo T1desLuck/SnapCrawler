@@ -138,7 +138,7 @@ crawling:
     network_activity_timeout: 5000   # ожидание сетевой активности (мс)
     hidden_processing_timeout: 2000  # ожидание обработки скрытых элементов (мс)
     navigation_timeout: 2000         # ожидание навигации (мс)
-    load_more_timeout: 3000          # ожидание "загрузить еще" (мс)
+    load_more_timeout: 2000          # ожидание "загрузить еще" (мс)
     
   # Настройки задержек
   delays:
