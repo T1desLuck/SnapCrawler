@@ -116,7 +116,7 @@ playwright install chromium
 nano config.yaml
 
 # Scrapy режим
-py -m scrapy crawl image_spider
+python -m scrapy crawl image_spider
 
 # Параллельный режим (архитектура ТЗ)
 python run_parallel.py
@@ -157,7 +157,7 @@ yaml.safe_dump(cfg, open('config.yaml', 'w'), allow_unicode=True)
 #### B. Запуск
 ```python
 # Scrapy (через шебанг в Colab)
-!py -m scrapy crawl image_spider -s LOG_LEVEL=INFO
+!python -m scrapy crawl image_spider -s LOG_LEVEL=INFO
 
 # Параллельный режим
 !python run_parallel.py
@@ -174,13 +174,13 @@ yaml.safe_dump(cfg, open('config.yaml', 'w'), allow_unicode=True)
 ### Стандартный режим (Scrapy)
 ```bash
 # Запуск с настройками по умолчанию
-py -m scrapy crawl image_spider
+python -m scrapy crawl image_spider
 
 # Запуск с кастомной конфигурацией
 # Внимание: Scrapy читает конфигурацию из файла `config.yaml` в корне проекта.
 # Чтобы использовать свой файл, временно замените его на ваш (Windows):
 copy my_config.yaml config.yaml
-py -m scrapy crawl image_spider
+python -m scrapy crawl image_spider
 ```
 
 ### Параллельный режим (архитектура из ТЗ)
@@ -201,6 +201,7 @@ general:
   mode: 'scrapy'  # или 'parallel'
   output_dir: 'downloads'
   log_level: 'info'
+  verbose_logging: false  # true = детальные логи, false = компактная статистика
 
 # Настройки обхода
 crawling:
@@ -222,20 +223,28 @@ images:
 
 ## 4) Примеры конфигураций
 
-### Фотостоки (Unsplash, Pexels)
+### Фотостоки (Unsplash, Pexels) - 2025
 ```yaml
 crawling:
   start_urls: ['https://unsplash.com/t/nature']
   stealth_mode: true
-  proxies: ['http://proxy1:8000', 'http://proxy2:8000']
   js_enabled: true
-  intercept_ajax: true
+  human_emulation:
+    enabled: true
+    scroll_speed: 800
+    max_interactions: 30
+  network_capture:
+    enabled: true
+    capture_json: true
+  hidden_images:
+    enabled: true
 
 images:
   min_side_size: 1920
-  formats: ['jpg', 'webp']
-  orientation: 'all'
-  allow_watermarks: false
+  formats: ['jpg', 'webp', 'avif', 'heic']
+  ai_optimization:
+    enabled: true
+    content_analysis: true
 ```
 
 ### Интернет‑магазины
@@ -267,58 +276,104 @@ images:
 
 ## 5) Мониторинг и статистика
 
-### Логи в реальном времени
+### Компактная статистика (по умолчанию)
+При `verbose_logging: false` отображается одна обновляющаяся строка:
+```
+Страниц: 156 | Найдено: 1247 | Не пройдено: 66 | Загружено: 300 | Сохранено: 234 | Вес папки: 512.0MB | Ошибка: Нет
+```
+
+### Подробные логи (для отладки)
+При `verbose_logging: true` выводятся детальные логи:
 ```
 [crawling_module] INFO: Обход: 120 страниц, найдено 850 изображений, очередь: 34
-[filtering_module] INFO: Скачано: 150, Обработано: 89, Отфильтровано: 61
+[filtering_module] INFO: ✅ [image123.jpg] Прошел все фильтры: (1920, 1080), RGB
+[filtering_module] INFO: ❌ [banner.png] Дубликат по perceptual hash
 [parallel_manager] INFO: Доля успешно прошедших фильтры: 59.3%
 ```
 
-### Финальная статистика
-```
-=== ФИНАЛЬНАЯ СТАТИСТИКА ===
-Всего страниц обработано: 156
-Всего изображений обнаружено: 1,247
-Скачано изображений: 300
-Изображений прошло фильтры: 234
-Изображений отфильтровано: 66
-Итоговый объём хранилища: 512.0 MB
-Общая доля успешно прошедших фильтры: 67.2%
+### Переключение режимов логирования
+```yaml
+general:
+  verbose_logging: false  # Компактная статистика (рекомендуется)
+  verbose_logging: true   # Детальные логи (для отладки)
 ```
 
-## 6) Расширенные возможности
+## 6) Расширенные возможности (2025)
 
-### CAPTCHA обработка
+### Эмуляция человеческого поведения
 ```yaml
 crawling:
+  human_emulation:
+    enabled: true
+    scroll_speed: 1000  # пикселей в секунду
+    click_delay: [1.0, 3.0]  # диапазон задержек
+    max_interactions: 50  # лимит взаимодействий на страницу
+```
+
+### Захват сетевого трафика
+```yaml
+crawling:
+  network_capture:
+    enabled: true
+    capture_json: true  # API responses
+    capture_websockets: false  # WebSocket сообщения
+    max_captured_urls: 1000
+```
+
+### Извлечение скрытых изображений
+```yaml
+crawling:
+  hidden_images:
+    enabled: true
+    extract_base64: true  # data-URI
+    extract_canvas: true  # canvas элементы
+    extract_shadow_dom: true  # shadow DOM
+```
+
+### Современные форматы изображений
+```yaml
+images:
+  ai_optimization:
+    enabled: true
+    enhance_quality: false
+    smart_cropping: false
+    content_analysis: true
+  formats: ['jpg', 'png', 'webp', 'avif', 'heic', 'jxl']
+```
+
+### Advanced Anti-Scraping
+```yaml
+crawling:
+  stealth_mode: true
   captcha_api_key: 'your_2captcha_key'
-```
-
-### Прокси‑ротация
-```yaml
-crawling:
   proxies:
     - 'http://user:pass@proxy1:8000'
     - 'http://user:pass@proxy2:8000'
 ```
 
-### Адаптивные задержки
-```yaml
-crawling:
-  request_delay: 1.0
-  max_delay: 30.0
-  backoff_factor: 2.0
-```
-
 ## 7) Отладка
 
+### Включение подробных логов
+```yaml
+# В config.yaml
+general:
+  verbose_logging: true  # Включить детальные логи
+  log_level: 'debug'     # Максимальная детализация
+```
+
+### Scrapy отладка
 ```bash
 # Детальные логи (через параметр Scrapy)
-py -m scrapy crawl image_spider -s LOG_LEVEL=DEBUG
+python -m scrapy crawl image_spider -s LOG_LEVEL=DEBUG
 
 # Профилирование памяти
-py -m scrapy crawl image_spider -s MEMUSAGE_ENABLED=True
+python -m scrapy crawl image_spider -s MEMUSAGE_ENABLED=True
 ```
+
+### Анализ проблем
+- **Компактная статистика не обновляется**: проверьте `verbose_logging: false` в config.yaml
+- **Слишком много логов**: установите `verbose_logging: false` для краткого вывода
+- **Ошибки фильтрации**: включите `verbose_logging: true` для детального анализа
 
 ## 8) Запуск (коротко)
 
@@ -361,12 +416,12 @@ class CustomSpider(ImageSpider):
 Примеры (Windows PowerShell):
 
 ```powershell
-py test_runner.py list
-py test_runner.py env:check
-py test_runner.py config:print --config config.yaml
-py test_runner.py unit:crawling_module
-py test_runner.py smoke:spider --timeout 60 --log INFO --item-limit 1 --depth 1
-py test_runner.py smoke:parallel --timeout 60 --config config.yaml
+python test_runner.py list
+python test_runner.py env:check
+python test_runner.py config:print --config config.yaml
+python test_runner.py unit:crawling_module
+python test_runner.py smoke:spider --timeout 60 --log INFO --item-limit 1 --depth 1
+python test_runner.py smoke:parallel --timeout 60 --config config.yaml
 ```
 
 Подсказки:

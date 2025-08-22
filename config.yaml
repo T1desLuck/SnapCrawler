@@ -5,7 +5,7 @@
 # ===================================
 images:
   # Минимальный размер по наименьшей стороне в пикселях (0 = без лимита)
-  min_side_size: 512
+  min_side_size: 0
   # Режим цветности: 'color', 'bw', 'all'
   color_mode: 'all'
   # Разрешить/запретить логотипы и баннеры
@@ -19,24 +19,49 @@ images:
   # Включить дедупликацию изображений
   # true = удалять дубликаты по перцептивному хэшу, false = не проверять на дубли
   deduplication: true
-  # Список разрешенных форматов
-  formats: ['jpg', 'jpeg', 'png']
+  # Список форматов изображений для скачивания (включая новые форматы 2025)
+  formats: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff', 'webp', 'avif', 'heic', 'heif', 'svg', 'jxl']
+  # Минимальное DPI изображения (0 = не проверять)
+  min_dpi: 72
+  # Диапазон соотношения сторон (0 = без лимита)
+  aspect_ratio_min: 0.2
+  aspect_ratio_max: 5.0
+  # Обнаружение водяных знаков
+  detect_watermarks: true
+  # Дедупликация
+  enable_deduplication: true
+  similarity_threshold: 0.85
+  # SVG обработка
+  svg_processing:
+    max_width: 1024
+    max_height: 1024
+    default_size: 512
+
+  # AI-оптимизация изображений
+  ai_optimization:
+    enabled: false  # Включить AI оптимизацию (требует дополнительные ресурсы)
+    enhance_quality: false  # Улучшение качества изображений
+    smart_cropping: false  # Умная обрезка
+    content_analysis: true  # Анализ содержимого изображений
+    format_conversion: true  # Автоматическое преобразование форматов
+    max_image_size: 2048  # Максимальный размер изображения в пикселях
+    enable_optimization: false  # Общая оптимизация
   # Требуемая ориентация: 'square', 'vertical', 'horizontal', 'all'
   orientation: 'all'
   # Минимальное DPI изображения (0 = не проверять)
-  min_dpi: 0
+  min_dpi: 50
   # Диапазон соотношения сторон (0 = без лимита)
-  aspect_ratio_min: 0
-  aspect_ratio_max: 0
+  aspect_ratio_min: 0.2
+  aspect_ratio_max: 5.0
 
 # ===================================
 # Настройки обхода и парсинга
 # ===================================
 crawling:
-  # Стартовые URL для начала обхода
+  # Начальные URL для обхода
   start_urls:
-    - 'https://commons.m.wikimedia.org/wiki/Category:CommonsRoot'
-    - 'https://icons8.com/photos/t/moose'
+    - "https://picsum.photos/"
+    - "https://commons.wikimedia.org/wiki/Category:Featured_pictures"
     - 'https://www.freeimages.com/photo'
   max_depth: 5
   # Включить рендеринг JavaScript через headless-браузер
@@ -50,19 +75,81 @@ crawling:
   # Максимальное количество запросов (0 = без лимита)
   max_requests: 0
   # Включить "скрытый режим" (ротация UA и прокси)
-  stealth_mode: true
+  stealth_mode: false
   # API ключ для сервиса решения CAPTCHA (2captcha, anticaptcha и др.)
   captcha_api_key: ''
   # Включить перехват Ajax/API запросов для поиска изображений
   intercept_ajax: true
   # Включить эмуляцию бесконечной прокрутки (infinite scroll) для динамических сайтов
   infinite_scroll: true
+  # Извлечение responsive изображений (picture, srcset)
+  extract_responsive_images: true
+  # Обнаружение lazy loading изображений
+  extract_lazy_loaded: true
+  # Перехват сетевых запросов для изображений
+  intercept_network_requests: true
+  # Расширенный парсинг CSS (image-set, custom properties)
+  enhanced_css_parsing: true
+  # Время ожидания для lazy loading (секунды)
+  lazy_load_wait_time: 2
+  # Максимальное количество попыток прокрутки для lazy loading
+  max_scroll_attempts: 5
+  
+  # Эмуляция человеческого поведения
+  human_emulation:
+    enabled: true
+    scroll_speed: 1000  # пикселей в секунду
+    click_delay: [1.0, 3.0]  # диапазон задержек для кликов
+    max_interactions: 50  # максимальное количество взаимодействий
+    scroll_pause_time: 2.0  # пауза после скролла
+    max_scroll_attempts: 10  # максимальные попытки скролла
+  
+  # Захват сетевого трафика
+  network_capture:
+    enabled: true
+    capture_json: true  # захватывать JSON API responses
+    capture_websockets: false  # захватывать WebSocket сообщения
+    image_domains: []  # фильтр доменов для изображений
+    max_captured_urls: 1000  # максимальное количество захваченных URL
+  
+  # Извлечение скрытых изображений
+  hidden_images:
+    enabled: true
+    extract_base64: true  # base64 data-URI
+    extract_canvas: true  # canvas элементы
+    extract_webgl: false  # WebGL рендеринг
+    extract_shadow_dom: true  # shadow DOM
   # Уважать правила из robots.txt
   respect_robots_txt: false
   # Автоматическая регулировка скорости в зависимости от ответа сервера
   auto_throttle: true
   # Максимальное количество потоков для скачивания
   max_threads: 6
+  
+  # Настройки таймаутов и производительности
+  timeouts:
+    request_timeout: 30  # таймаут HTTP запросов в секундах
+    queue_timeout: 30    # таймаут очереди в секундах
+    process_join_timeout: 10  # таймаут завершения процессов
+    chunk_size: 8192     # размер блока для загрузки файлов
+    queue_maxsize: 1000  # максимальный размер очереди
+    page_load_timeout: 2000  # ожидание загрузки страницы (мс)
+    dom_stabilization_timeout: 3000  # ожидание стабилизации DOM (мс)
+    network_activity_timeout: 5000   # ожидание сетевой активности (мс)
+    hidden_processing_timeout: 2000  # ожидание обработки скрытых элементов (мс)
+    navigation_timeout: 2000         # ожидание навигации (мс)
+    load_more_timeout: 3000          # ожидание "загрузить еще" (мс)
+    
+  # Настройки задержек
+  delays:
+    min_random_delay: 0.1  # минимальная случайная задержка
+    max_random_delay: 0.5  # максимальная случайная задержка
+    min_request_delay: 1.0  # минимальная задержка между запросами
+    max_request_delay: 3.0  # максимальная задержка между запросами
+    base_delay: 1.0        # базовая задержка
+    scroll_near_bottom_threshold: 1000  # порог близости к низу страницы
+    load_more_wait: 1000   # ожидание после клика "загрузить еще"
+    load_more_pause: 2000  # пауза после клика "загрузить еще"
   # Список прокси для ротации (формат: 'http://host:port')
   # Бесплатные прокси для обхода блокировок и увеличения скорости
   proxies:
@@ -104,3 +191,5 @@ general:
   mode: 'parallel'
   # Включить детальную статистику древесного обхода
   detailed_tree_stats: false
+  # Подробное логирование (true = детальные логи, false = компактная статистика)
+  verbose_logging: false
