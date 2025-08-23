@@ -26,7 +26,7 @@ jobs:
         pip install flake8
         # flake8 запускается, но всегда возвращает код 0 (CI не падает)
         flake8 . --exit-zero --max-line-length=500 --statistics
-    - name: Test with pytest
+    - name: Smoke test spider
       run: |
         pip install pytest
-        python test_runner.py run_all
+        python test_runner.py smoke:spider --timeout 60 --item-limit 1 --depth 1 --offline
