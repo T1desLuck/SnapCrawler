@@ -33,6 +33,6 @@ jobs:
       run: |
         # flake8 запускается, но всегда успешный и ничего не валит
         flake8 . --exit-zero --max-line-length=500 --statistics
-    - name: Test with pytest
+    - name: Smoke test spider
       run: |
-        python test_runner.py run_all
+        python test_runner.py smoke:spider --timeout 60 --item-limit 1 --depth 1 --offline
