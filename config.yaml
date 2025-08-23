@@ -4,78 +4,89 @@
 # Настройки фильтрации изображений
 # ===================================
 images:
-  # Минимальный размер по наименьшей стороне в пикселях (0 = без лимита)
-  min_side_size: 500
-  # Режим цветности: 'color', 'bw', 'all'
-  color_mode: 'color'
+  min_side_size: 500                      # Минимальный размер по наименьшей стороне в пикселях (0 = без лимита)
+  color_mode: 'all'                       # Режим цветности: 'color', 'bw', 'all'
   # Разрешить/запретить логотипы и баннеры
-  # false = фильтровать баннеры/логотипы (проверка экстремальных соотношений сторон), true = пропускать
-  allow_logos_banners: false
-  # Разрешить/запретить изображения с водяными знаками
-  # false = фильтровать изображения с водяными знаками (включить детекцию), true = пропускать (детекция отключена)
-  allow_watermarks: true
-  # Чувствительность детекции водяных знаков (больше = строже)
-  watermark_sensitivity: 0
-  # Включить дедупликацию изображений
-  # true = удалять дубликаты по перцептивному хэшу, false = не проверять на дубли
-  deduplication: true
-  # Список форматов изображений для скачивания (включая новые форматы 2025)
-  formats: ['jpg', 'jpeg', 'png', 'svg']
-  # Минимальное DPI изображения (0 = не проверять)
-  min_dpi: 0
-  # Диапазон соотношения сторон (0 = без лимита)
-  aspect_ratio_min: 0.2
-  aspect_ratio_max: 5.0
-  # Обнаружение водяных знаков
-  detect_watermarks: true
-  # Дедупликация
-  enable_deduplication: true
-  similarity_threshold: 0.85
+  allow_logos_banners: false              # false = фильтровать баннеры/логотипы, true = пропускать
+  # Настройки детекции водяных знаков
+  watermark_detection:
+    enabled: true                         # Включить детекцию водяных знаков (true = фильтровать, false = пропускать все)
+    sensitivity: 15                       # Чувствительность детекции (больше = строже, 0 = отключена)
+  deduplication: true                     # true = удалять дубликаты по перцептивному хэшу, false = не проверять на дубли
+  # Список форматов изображений для скачивания (фокус на качественные фото)
+  formats: ['jpg', 'jpeg', 'png', 'webp']
+  min_dpi: 0                              # Минимальное DPI изображения (0 = не проверять)
+  # Диапазон соотношения сторон (исключаем баннеры и иконки)
+  aspect_ratio_min: 0.4
+  aspect_ratio_max: 3.0
+  similarity_threshold: 0.92              # Дедупликация (используется параметр deduplication выше)
   # SVG обработка
   svg_processing:
-    max_width: 1024
-    max_height: 1024
+    max_width: 4096
+    max_height: 4096
     default_size: 512
 
   # AI-оптимизация изображений
   ai_optimization:
-    enabled: false  # Включить AI оптимизацию (требует дополнительные ресурсы)
-    enhance_quality: false  # Улучшение качества изображений
-    smart_cropping: true  # Умная обрезка
-    content_analysis: true  # Анализ содержимого изображений
-    format_conversion: true  # Автоматическое преобразование форматов
-    max_image_size: 7000  # Максимальный размер изображения в пикселях
-    enable_optimization: false  # Общая оптимизация
-  # Требуемая ориентация: 'square', 'vertical', 'horizontal', 'all'
-  orientation: 'all'
-  # Минимальное DPI изображения (0 = не проверять)
-  min_dpi: 0
-  # Диапазон соотношения сторон (0 = без лимита)
-  aspect_ratio_min: 0.2
-  aspect_ratio_max: 5.0
+    enabled: false                        # Включить AI оптимизацию (требует дополнительные ресурсы)
+    enhance_quality: false                # Улучшение качества изображений
+    smart_cropping: true                  # Умная обрезка
+    content_analysis: true                # Анализ содержимого изображений
+    format_conversion: true               # Автоматическое преобразование форматов
+    max_image_size: 7000                  # Максимальный размер изображения в пикселях
+  orientation: 'all'                      # Требуемая ориентация: 'square', 'vertical', 'horizontal', 'all'
 
 # ===================================
 # Настройки обхода и парсинга
 # ===================================
 crawling:
-  # Начальные URL для обхода
+  # Начальные URL для обхода - расширенный список фотостоков 2025
   start_urls:
-    - "https://picsum.photos/"
-    - "https://commons.wikimedia.org/wiki/Category:Featured_pictures"
-    - 'https://www.freeimages.com/photo'
+    # Топовые бесплатные фотостоки
+    - "https://unsplash.com/"                                    # Самый популярный арт-фотосток
+    - "https://www.pexels.com/"                                  # Трендовые фото высокого качества
+    - "https://pixabay.com/"                                     # Огромная база разнообразных изображений
+    - "https://www.rawpixel.com/category/53/public-domain"       # Аутентичные изображения и винтаж
+    - "https://burst.shopify.com/"                              # Коммерческие фото для бизнеса
+    - "https://pikwizard.com/"                                   # Профессиональные фото от фотографов
+    
+    # Специализированные источники
+    - "https://picsum.photos/"                                   # Генератор случайных изображений
+    - "https://commons.wikimedia.org/wiki/Category:Featured_pictures"  # Википедия избранные
+    - "https://www.freeimages.com/photo"                        # Классический фотосток
+    - "https://stocksnap.io/"                                    # Современные стили
+    - "https://gratisography.com/"                              # Экспериментальные арт-фото
+    - "https://lifeofpix.com/"                                   # Кураторские арт-фотографии
+    - "https://splitshire.com/"                                  # Коммерческий стиль
+    - "https://picjumbo.com/"                                    # Профессиональные фото
+    - "https://kaboompics.com/"                                  # Instagram-стиль
+    - "https://www.rgbstock.com/"                               # Фото от профи
+    - "https://goodstock.photos/"                               # Редакционный стиль
+    - "https://fancycrave.com/"                                  # Трендовые пакеты
+    - "https://isorepublic.com/"                                # Универсальная библиотека
+    - "https://startupstockphotos.com/"                         # Современный бизнес
+    - "https://mmtstock.com/"                                    # Природа и рабочие места
+    - "https://foodiesfeed.com/"                                # Еда высокого разрешения
+    - "https://freerangestock.com/"                             # Все темы
+    - "https://stockvault.net/"                                 # Технически оптимальные
+    - "https://styledstock.co/"                                 # Женственный стиль
+    - "https://nos.twnsnd.co/"                                  # Винтаж и история
+    - "https://skitterphoto.com/"                               # Эклектичная подборка
+    - "https://negativespace.co/"                               # Трендовые высококачественные
+    - "https://picspree.com/"                                   # Профессиональные концепты
   max_depth: 5
   # Включить рендеринг JavaScript через headless-браузер
   js_enabled: true
-  # Задержка между запросами в секундах
-  request_delay: 1.0
+  # Задержка между запросами в секундах (имитация человека)
+  request_delay: 2.5
   # Максимальная задержка при адаптивном замедлении
-  max_delay: 20.0
+  max_delay: 30.0
   # Коэффициент увеличения задержки при ошибках
-  backoff_factor: 1.5
+  backoff_factor: 2.0
   # Максимальное количество запросов (0 = без лимита)
   max_requests: 0
   # Включить "скрытый режим" (ротация UA и прокси)
-  stealth_mode: false
+  stealth_mode: true
   # API ключ для сервиса решения CAPTCHA (2captcha, anticaptcha и др.)
   captcha_api_key: ''
   # Включить перехват Ajax/API запросов для поиска изображений
@@ -92,83 +103,115 @@ crawling:
   enhanced_css_parsing: true
   # Время ожидания для lazy loading (секунды)
   lazy_load_wait_time: 2
-  # Максимальное количество попыток прокрутки для lazy loading
-  max_scroll_attempts: 5
+  # Максимальное количество попыток прокрутки для lazy loading (настраивается в human_emulation.max_scroll_attempts)
   
   # Эмуляция человеческого поведения
   human_emulation:
     enabled: true
-    scroll_speed: 1000  # пикселей в секунду
-    click_delay: [1.0, 3.0]  # диапазон задержек для кликов
-    max_interactions: 50  # максимальное количество взаимодействий
-    scroll_pause_time: 2.0  # пауза после скролла
-    max_scroll_attempts: 10  # максимальные попытки скролла
+    scroll_speed: 800                     # пикселей в секунду (медленнее = естественнее)
+    click_delay: [2.0, 5.0]               # диапазон задержек для кликов
+    max_interactions: 30                  # максимальное количество взаимодействий
+    scroll_pause_time: 3.5                # пауза после скролла
+    max_scroll_attempts: 8                # максимальные попытки скролла
   
   # Захват сетевого трафика
   network_capture:
     enabled: true
-    capture_json: true  # захватывать JSON API responses
-    capture_websockets: false  # захватывать WebSocket сообщения
-    image_domains: []  # фильтр доменов для изображений
-    max_captured_urls: 1000  # максимальное количество захваченных URL
+    capture_json: true                    # захватывать JSON API responses
+    capture_websockets: false             # захватывать WebSocket сообщения
+    image_domains: []                     # фильтр доменов для изображений
+    max_captured_urls: 1000               # максимальное количество захваченных URL
   
   # Извлечение скрытых изображений
   hidden_images:
     enabled: true
-    extract_base64: true  # base64 data-URI
-    extract_canvas: true  # canvas элементы
-    extract_webgl: false  # WebGL рендеринг
-    extract_shadow_dom: true  # shadow DOM
-  # Уважать правила из robots.txt
-  respect_robots_txt: false
+    extract_base64: true                  # base64 data-URI
+    extract_canvas: true                  # canvas элементы
+    extract_webgl: false                  # WebGL рендеринг
+    extract_shadow_dom: true              # shadow DOM
+  respect_robots_txt: false               # Уважать правила из robots.txt
   # Автоматическая регулировка скорости в зависимости от ответа сервера
   auto_throttle: true
-  # Максимальное количество потоков для скачивания
-  max_threads: 6
+  # Максимальное количество потоков для скачивания (консервативно)
+  max_threads: 3
   
   # Настройки таймаутов и производительности
   timeouts:
-    request_timeout: 30  # таймаут HTTP запросов в секундах
-    queue_timeout: 30    # таймаут очереди в секундах
-    process_join_timeout: 10  # таймаут завершения процессов
-    chunk_size: 8192     # размер блока для загрузки файлов
-    queue_maxsize: 1000  # максимальный размер очереди
-    page_load_timeout: 2000  # ожидание загрузки страницы (мс)
-    dom_stabilization_timeout: 3000  # ожидание стабилизации DOM (мс)
-    network_activity_timeout: 5000   # ожидание сетевой активности (мс)
-    hidden_processing_timeout: 2000  # ожидание обработки скрытых элементов (мс)
-    navigation_timeout: 2000         # ожидание навигации (мс)
-    load_more_timeout: 2000          # ожидание "загрузить еще" (мс)
+    request_timeout: 30                   # таймаут HTTP запросов в секундах
+    queue_timeout: 30                     # таймаут очереди в секундах
+    process_join_timeout: 10              # таймаут завершения процессов
+    chunk_size: 8192                      # размер блока для загрузки файлов
+    queue_maxsize: 1000                   # максимальный размер очереди
+    page_load_timeout: 2000               # ожидание загрузки страницы (мс)
+    dom_stabilization_timeout: 3000       # ожидание стабилизации DOM (мс)
+    network_activity_timeout: 5000        # ожидание сетевой активности (мс)
+    hidden_processing_timeout: 2000       # ожидание обработки скрытых элементов (мс)
+    navigation_timeout: 2000              # ожидание навигации (мс)
+    load_more_timeout: 2000               # ожидание "загрузить еще" (мс)
     
   # Настройки задержек
   delays:
-    min_random_delay: 0.1  # минимальная случайная задержка
-    max_random_delay: 0.5  # максимальная случайная задержка
-    min_request_delay: 1.0  # минимальная задержка между запросами
-    max_request_delay: 3.0  # максимальная задержка между запросами
-    base_delay: 1.0        # базовая задержка
-    scroll_near_bottom_threshold: 1000  # порог близости к низу страницы
-    load_more_wait: 1000   # ожидание после клика "загрузить еще"
-    load_more_pause: 2000  # пауза после клика "загрузить еще"
+    min_random_delay: 0.1                 # минимальная случайная задержка
+    max_random_delay: 0.5                 # максимальная случайная задержка
+    min_request_delay: 2.0                # минимальная задержка между запросами
+    max_request_delay: 6.0                # максимальная задержка между запросами
+    base_delay: 1.0                       # базовая задержка
+    scroll_near_bottom_threshold: 1000    # порог близости к низу страницы
+    load_more_wait: 1000                  # ожидание после клика "загрузить еще"
+    load_more_pause: 2000                 # пауза после клика "загрузить еще"
   # Список прокси для ротации (формат: 'http://host:port')
-  # Бесплатные прокси для обхода блокировок и увеличения скорости
-  proxies:
-    - 'http://51.158.154.173:3128'    # Франция
-    - 'http://185.199.229.156:7492'   # США  
-    - 'http://89.208.219.121:8080'    # Россия
-    - 'http://159.69.153.169:5566'    # Германия
-    - 'http://user:pass@premium-proxy.com:8000'
-    # Добавьте свои прокси по необходимости:
-    # - 'http://user:pass@premium-proxy.com:8000'
-  # Список пользовательских агентов (User-Agent) для ротации
+  # ВНИМАНИЕ: Бесплатные прокси часто нестабильны, рекомендуется использовать платные
+  proxies: []                             # Пустой список = без прокси (более стабильно)
+  # Список пользовательских агентов (User-Agent) для ротации - обновлено на 2025 год
   user_agents:
-    - 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    - 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
-    - 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    - 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15'
-    - 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    - 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0'
-    - 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0'
+    # Chrome 139 (январь 2025) - Windows
+    - 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
+    - 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
+    - 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36'
+    
+    # Chrome 139 - macOS
+    - 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
+    - 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
+    
+    # Chrome 139 - Linux
+    - 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
+    - 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
+    
+    # Firefox 134 (январь 2025)
+    - 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:134.0) Gecko/20100101 Firefox/134.0'
+    - 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0'
+    - 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14.7; rv:134.0) Gecko/20100101 Firefox/134.0'
+    - 'Mozilla/5.0 (X11; Linux x86_64; rv:134.0) Gecko/20100101 Firefox/134.0'
+    
+    # Safari 18.2 (январь 2025)
+    - 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Safari/605.1.15'
+    - 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15'
+    
+    # Edge 139 (январь 2025)
+    - 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0'
+    - 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0'
+    - 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0'
+    
+    # Opera 116 (январь 2025)
+    - 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 OPR/116.0.0.0'
+    - 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 OPR/116.0.0.0'
+    
+    # Vivaldi 7.1 (январь 2025)
+    - 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Vivaldi/7.1.3569.69'
+    - 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Vivaldi/7.1.3569.69'
+    
+    # Brave Browser (январь 2025)
+    - 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
+    - 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
+    
+    # Мобильные User-Agents для разнообразия
+    # Chrome Mobile Android
+    - 'Mozilla/5.0 (Linux; Android 14; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.7258.124 Mobile Safari/537.36'
+    - 'Mozilla/5.0 (Linux; Android 13; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.7258.124 Mobile Safari/537.36'
+    
+    # Safari Mobile iOS
+    - 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Mobile/15E148 Safari/604.1'
+    - 'Mozilla/5.0 (iPad; CPU OS 18_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Mobile/15E148 Safari/604.1'
 
 # ===================================
 # Ограничения ресурсов
@@ -177,19 +220,19 @@ limits:
   # Максимальный размер папки со скачанными изображениями в МБ (0 = без лимита)
   max_folder_size_mb: 0
   # Максимальное количество изображений для скачивания (0 = без лимита)
-  max_images: 150000
+  max_images: 150000                       # Разумный лимит для качественной коллекции
 
 # ===================================
 # Общие настройки
 # ===================================
 general:
   # Уровень логирования: 'debug', 'info', 'warning', 'error'
-  log_level: 'info'
+  log_level: 'info'                    # Меньше логов = меньше следов активности
   # Директория для сохранения результатов
   output_dir: 'downloads'
   # Режим работы: 'scrapy' (стандартный) или 'parallel' (двухмодульный)
-  mode: 'parallel'
+  mode: 'parallel'                        # Двухмодульный режим более эффективен
   # Включить детальную статистику древесного обхода
   detailed_tree_stats: false
   # Подробное логирование (true = детальные логи, false = компактная статистика)
-  verbose_logging: false
+  verbose_logging: false                  # Минимальные логи для скрытности
