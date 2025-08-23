@@ -35,4 +35,4 @@ jobs:
         flake8 . --exit-zero --max-line-length=500 --statistics
     - name: Test with pytest
       run: |
-        pytest -v test_runner.py
+        python test_runner.py run_all
