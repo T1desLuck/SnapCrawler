@@ -8,7 +8,7 @@
 
 <p>
   <a href="https://github.com/T1desLuck/SnapCrawler"><img alt="Repo" src="https://img.shields.io/badge/GitHub-Repository-black?logo=github"></a>
-  <a href="https://www.python.org/"><img alt="Python" src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white"></a>
+  <a href="https://www.python.org/"><img alt="Python" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white"></a>
   <a href="https://scrapy.org/"><img alt="Scrapy" src="https://img.shields.io/badge/Scrapy-ready-60A839?logo=scrapy&logoColor=white"></a>
   <a href="https://playwright.dev/python/"><img alt="Playwright" src="https://img.shields.io/badge/Playwright-optional-2EAD33?logo=microsoftedge&logoColor=white"></a>
   <img alt="OS" src="https://img.shields.io/badge/OS-Windows%20|%20macOS%20|%20Linux-555">
