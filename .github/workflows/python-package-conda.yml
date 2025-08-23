@@ -23,10 +23,10 @@ jobs:
         conda env update --file environment.yml --name base
     - name: Lint with flake8
       run: |
-        conda install -y flake8
+        pip install flake8
         # flake8 запускается, но всегда возвращает код 0 (CI не падает)
         flake8 . --exit-zero --max-line-length=500 --statistics
     - name: Test with pytest
       run: |
-        conda install -y pytest
+        pip install pytest
         pytest
