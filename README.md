@@ -12,6 +12,7 @@
   <a href="https://scrapy.org/"><img alt="Scrapy" src="https://img.shields.io/badge/Scrapy-ready-60A839?logo=scrapy&logoColor=white"></a>
   <a href="https://playwright.dev/python/"><img alt="Playwright" src="https://img.shields.io/badge/Playwright-optional-2EAD33?logo=microsoftedge&logoColor=white"></a>
   <img alt="OS" src="https://img.shields.io/badge/OS-Windows%20|%20macOS%20|%20Linux-555">
+  <a href="https://colab.research.google.com/gist/T1desLuck/d9a3bb81f2119d86ff2069234dea26f5/snapcrawler.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
 </p>
 
 <p>
